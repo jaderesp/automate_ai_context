@@ -31,7 +31,8 @@ Não altere código sem autorização!
 Após finalizar a demanda, você **NÃO DEVE** criar um arquivo novo.
 Você **DEVE OBRIGATORIAMENTE** editar o arquivo existente gerado pela etapa 1 (ex: `DEM-1.md`):
 - Altere o frontmatter para `status: concluido`.
-- Preencha os campos vazios do arquivo com o Resumo, a Solução Adotada, e a lista de arquivos afetados.
+- Preencha os campos vazios do arquivo com o Resumo, a Solução Adotada e a lista de arquivos.
+- **NÍVEL DE DETALHAMENTO EXIGIDO:** O preenchimento deve ser **extremamente técnico e detalhado**. Especifique exatamente o porquê do erro (arquitetura, ORM, restrições de banco), quais tabelas, colunas, chaves estrangeiras (FK) e trechos de código exatos falharam, além da lógica por trás da solução. Este documento servirá de base de conhecimento para reuniões técnicas com a liderança da equipe, então **nunca seja superficial**.
 
 Isto encerra o ciclo no Kanban e preserva os tokens.
 ```
