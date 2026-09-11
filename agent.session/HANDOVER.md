@@ -13,6 +13,7 @@ Este documento serve como o ponto de partida (memória) para a IA assim que inic
 ## 🚀 O que foi feito nas Últimas Sessões
 
 ### Sessão: 11/09/2026 (Hoje)
+*ID da Sessão:* `agy --conversation=3ef7433b-d165-4c31-9f41-8206ab38a804`
 - **DEM-65 (Playback iOS)**: Concluída. Corrigido encode do `ffmpeg` para arquivos PTT inserindo as flags `-ac 1 -ar 16000` (Mono, 16kHz). Push feito com sucesso para o GitLab.
 - **DEM-46 (Retrieve 410 Áudios)**: Concluída. O worker tentava achar mídias recém-upadas na tabela `messages` causando erro. Substituímos para o padrão `client.DownloadMediaWithPath(...)`. Commit realizado localmente na branch `fix/dem-46-audio-retrieve`.
 - **Painel Python (Kanban)**: Adicionado botão "+ Nova Demanda" e formulário. Eliminado os bugs de tela branca causados por Javascript cacheado e nulos no CSV.
