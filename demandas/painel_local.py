@@ -20,7 +20,8 @@ html_template = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UzAPI - Kanban de Demandas IA</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -68,6 +69,9 @@ html_template = """
                         <option value="média">🟡 Média</option>
                         <option value="baixa">🟢 Baixa/Normal</option>
                     </select>
+                    <button onclick="openNewTaskModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-plus"></i> Nova Demanda
+                    </button>
                 </div>
             </div>
         </div>
@@ -107,6 +111,100 @@ html_template = """
         </div>
     </main>
 
+    <!-- Modal de Detalhes da Demanda (50% da tela) -->
+    <div id="taskModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex justify-end transition-opacity">
+        <div class="bg-white w-full md:w-1/2 h-full shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300" id="taskModalContent">
+            <div class="flex justify-between items-center p-6 border-b border-slate-200">
+                <h2 class="text-xl font-bold text-slate-800" id="modalTitle">Detalhes da Demanda</h2>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <i class="fa-solid fa-xmark text-2xl"></i>
+                </button>
+            </div>
+            <div class="p-6 flex-1 overflow-y-auto custom-scrollbar">
+                <div class="flex gap-2 mb-6" id="modalBadges"></div>
+                
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2" id="modalDescTitle">Descrição</h3>
+                <div id="modalDesc" class="mb-6"></div>
+                
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <h3 class="text-xs font-bold text-slate-500 uppercase mb-1">Módulo</h3>
+                        <p class="font-medium text-slate-800" id="modalModulo"></p>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <h3 class="text-xs font-bold text-slate-500 uppercase mb-1">Status (IA)</h3>
+                        <p class="font-medium text-slate-800" id="modalStatus"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Nova Demanda -->
+    <div id="newTaskModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex justify-center items-center transition-opacity">
+        <div class="bg-white w-full max-w-3xl rounded-xl shadow-2xl flex flex-col transform scale-95 transition-transform duration-300" id="newTaskModalContent">
+            <div class="flex justify-between items-center p-6 border-b border-slate-200">
+                <h2 class="text-xl font-bold text-slate-800">Adicionar Nova Demanda</h2>
+                <button onclick="closeNewTaskModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <i class="fa-solid fa-xmark text-2xl"></i>
+                </button>
+            </div>
+            <form id="newTaskForm" onsubmit="submitNewTask(event)" class="p-6 overflow-y-auto max-h-[80vh] custom-scrollbar">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Título</label>
+                        <input type="text" id="nt_titulo" required class="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo</label>
+                        <select id="nt_tipo" required class="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="Feature">Feature</option>
+                            <option value="Bug">Bug</option>
+                            <option value="Melhoria">Melhoria</option>
+                            <option value="Refatoração">Refatoração</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descrição</label>
+                    <textarea id="nt_desc" required rows="4" class="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                </div>
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Módulo</label>
+                        <input type="text" id="nt_modulo" required class="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Prioridade</label>
+                        <select id="nt_prio" required class="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="Baixa">Baixa</option>
+                            <option value="Média">Média</option>
+                            <option value="Alta">Alta</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Responsável</label>
+                        <input type="text" id="nt_resp" required class="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Versão (opcional)</label>
+                        <input type="text" id="nt_versao" class="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Observações (opcional)</label>
+                        <input type="text" id="nt_obs" class="w-full border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                    <button type="button" onclick="closeNewTaskModal()" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors">Salvar Demanda</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let allDemands = [];
 
@@ -129,6 +227,101 @@ html_template = """
             return { color: 'text-emerald-700 bg-emerald-100', border: 'task-baixa', icon: '🟢' };
         }
 
+        function openModal(id) {
+            const d = allDemands.find(x => x.ID === id);
+            if(!d) return;
+            
+            document.getElementById('modalTitle').innerText = d.Título;
+            document.getElementById('modalModulo').innerText = d.Módulo;
+            document.getElementById('modalStatus').innerText = (d.ia_status || 'N/A').toUpperCase();
+            
+            if (d.md_content) {
+                document.getElementById('modalDescTitle').innerText = "Histórico de Execução";
+                // Remove o cabeçalho YAML frontmatter do markdown
+                let cleanMd = d.md_content.replace(/^---\\n[\\s\\S]*?\\n---\\n/, '');
+                document.getElementById('modalDesc').innerHTML = `<div class="prose prose-sm md:prose-base max-w-none prose-slate prose-headings:text-blue-800 prose-a:text-blue-600 bg-slate-50 p-5 rounded-xl border border-slate-200">` + marked.parse(cleanMd) + `</div>`;
+            } else {
+                document.getElementById('modalDescTitle').innerText = "Descrição Original";
+                document.getElementById('modalDesc').innerHTML = `<div class="bg-slate-50 p-4 rounded-lg border border-slate-100 text-slate-700 whitespace-pre-wrap">${d.Descrição}</div>`;
+            }
+            
+            const style = getPriorityStyle(d.Prioridade);
+            document.getElementById('modalBadges').innerHTML = `
+                <span class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">#${d.ID}</span>
+                <span class="text-xs font-bold px-3 py-1 rounded-full ${style.color}">${style.icon} ${d.Prioridade.toUpperCase()}</span>
+            `;
+            
+            const modal = document.getElementById('taskModal');
+            const content = document.getElementById('taskModalContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('translate-x-full');
+            }, 10);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('taskModal');
+            const content = document.getElementById('taskModalContent');
+            content.classList.add('translate-x-full');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function openNewTaskModal() {
+            document.getElementById('newTaskForm').reset();
+            const modal = document.getElementById('newTaskModal');
+            const content = document.getElementById('newTaskModalContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeNewTaskModal() {
+            const modal = document.getElementById('newTaskModal');
+            const content = document.getElementById('newTaskModalContent');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        async function submitNewTask(e) {
+            e.preventDefault();
+            
+            const payload = {
+                Tipo: document.getElementById('nt_tipo').value,
+                Título: document.getElementById('nt_titulo').value,
+                Descrição: document.getElementById('nt_desc').value,
+                Módulo: document.getElementById('nt_modulo').value,
+                Prioridade: document.getElementById('nt_prio').value,
+                Responsável: document.getElementById('nt_resp').value,
+                Versão: document.getElementById('nt_versao').value,
+                Observações: document.getElementById('nt_obs').value
+            };
+
+            document.getElementById('loader').style.display = 'flex';
+            try {
+                const res = await fetch('/api/nova-demanda', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if(res.ok) {
+                    closeNewTaskModal();
+                    await fetchDemands();
+                } else {
+                    alert('Erro ao salvar demanda.');
+                }
+            } catch(e) {
+                alert('Falha na comunicação com servidor.');
+            }
+            document.getElementById('loader').style.display = 'none';
+        }
+
         function createCard(d) {
             const style = getPriorityStyle(d.Prioridade);
             let actionBtn = '';
@@ -141,18 +334,21 @@ html_template = """
                 actionBtn = `<div class="mt-3 w-full bg-emerald-100 text-emerald-700 font-medium py-1.5 px-3 rounded text-sm flex items-center justify-center gap-2"><i class="fa-solid fa-check"></i> Executado</div>`;
             }
 
-            // Tratamento de quebras de linha para UX
-            const descPreview = d.Descrição.length > 100 ? d.Descrição.substring(0, 100) + '...' : d.Descrição;
+            // Tratamento de quebras de linha e nulos para UX
+            const desc = d.Descrição || 'Sem descrição';
+            const descPreview = desc.length > 100 ? desc.substring(0, 100) + '...' : desc;
+            const title = d.Título || 'Sem título';
+            const modulo = d.Módulo || '-';
 
             return `
                 <div class="task-card bg-white p-4 rounded-lg shadow-sm border border-slate-200 ${style.border}">
                     <div class="flex justify-between items-start mb-2">
-                        <span class="text-xs font-bold text-slate-500">#${d.ID}</span>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${style.color}">${style.icon} ${d.Prioridade.toUpperCase()}</span>
+                        <span class="text-xs font-bold text-slate-500 cursor-pointer hover:text-blue-600 transition-colors" onclick="openModal('${d.ID}')">#${d.ID} <i class="fa-solid fa-up-right-from-square text-[10px] ml-0.5"></i></span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${style.color}">${style.icon} ${d.Prioridade ? d.Prioridade.toUpperCase() : ''}</span>
                     </div>
-                    <h3 class="font-semibold text-slate-800 text-sm mb-1 leading-snug">${d.Título}</h3>
-                    <div class="text-xs text-slate-500 mb-2 font-medium bg-slate-50 inline-block px-1.5 py-0.5 rounded"><i class="fa-solid fa-cube mr-1"></i>${d.Módulo}</div>
-                    <p class="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2 rounded border border-slate-100" title="${d.Descrição.replace(/"/g, '&quot;')}">${descPreview}</p>
+                    <h3 class="font-semibold text-slate-800 text-sm mb-1 leading-snug cursor-pointer hover:text-blue-600 transition-colors" onclick="openModal('${d.ID}')">${title}</h3>
+                    <div class="text-xs text-slate-500 mb-2 font-medium bg-slate-50 inline-block px-1.5 py-0.5 rounded"><i class="fa-solid fa-cube mr-1"></i>${modulo}</div>
+                    <p class="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2 rounded border border-slate-100 cursor-pointer" title="Clique para ver mais" onclick="openModal('${d.ID}')">${descPreview.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
                     ${actionBtn}
                 </div>
             `;
@@ -163,7 +359,9 @@ html_template = """
             const prioFilter = document.getElementById('prioFilter').value.toLowerCase();
 
             const filtered = allDemands.filter(d => {
-                const matchSearch = d.Título.toLowerCase().includes(search) || d.ID.toString().includes(search);
+                const titleStr = (d.Título || '').toLowerCase();
+                const idStr = (d.ID || '').toString();
+                const matchSearch = titleStr.includes(search) || idStr.includes(search);
                 const matchPrio = prioFilter === '' || (d.Prioridade || '').toLowerCase() === prioFilter;
                 return matchSearch && matchPrio;
             });
@@ -214,6 +412,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path == '/':
             self.send_response(200)
             self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
             self.end_headers()
             self.wfile.write(html_template.encode('utf-8'))
         elif self.path == '/api/demandas':
@@ -222,14 +423,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if os.path.exists(EXEC_DIR):
                 for file in glob.glob(f"{EXEC_DIR}/DEM-*.md"):
                     basename = os.path.basename(file).replace('DEM-', '').replace('.md', '')
-                    # Ler o arquivo para descobrir o status real (pendente ou concluido)
+                    # Ler o arquivo para descobrir o status real e pegar o markdown
                     status_local = 'pendente'
                     with open(file, 'r', encoding='utf-8') as mf:
-                        for line in mf.readlines():
+                        content = mf.read()
+                        # Extrair o status via string simples (pra não importar re obrigatoriamente se n precisar)
+                        for line in content.splitlines():
                             if line.startswith('status:'):
                                 status_local = line.split('status:')[1].strip()
                                 break
-                    exec_status[basename] = status_local
+                    exec_status[basename] = {
+                        'status': status_local,
+                        'md_content': content
+                    }
 
             demandas = []
             if os.path.exists(CSV_PATH):
@@ -240,7 +446,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         # Definir a coluna correta (ia_status)
                         ia_status = 'backlog'
                         if row.get('ID') in exec_status:
-                            ia_status = exec_status[row.get('ID')].lower()
+                            ia_status = exec_status[row.get('ID')]['status'].lower()
+                            row['md_content'] = exec_status[row.get('ID')]['md_content']
                         else:
                             # Ignorar as reprovadas no CSV original que não foram pra IA
                             if status_csv in ['reprovado', 'concluído', 'concluido']:
@@ -295,6 +502,53 @@ modulo: {body['modulo']}
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({"success": True}).encode('utf-8'))
+            
+        elif self.path == '/api/nova-demanda':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length))
+            
+            next_id = 1
+            rows = []
+            headers = ["ID","Tipo","Título","Descrição","Módulo","Prioridade","Status","Responsável","Data de Criação","Versão","Observações"]
+            
+            if os.path.exists(CSV_PATH):
+                with open(CSV_PATH, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for r in reader:
+                        rows.append(r)
+                        try:
+                            cid = int(r.get('ID', 0))
+                            if cid >= next_id:
+                                next_id = cid + 1
+                        except:
+                            pass
+                            
+            new_row = {
+                "ID": str(next_id),
+                "Tipo": body.get("Tipo", ""),
+                "Título": body.get("Título", ""),
+                "Descrição": body.get("Descrição", ""),
+                "Módulo": body.get("Módulo", ""),
+                "Prioridade": body.get("Prioridade", ""),
+                "Status": "A Fazer",
+                "Responsável": body.get("Responsável", ""),
+                "Data de Criação": datetime.now().strftime('%d/%m/%Y'),
+                "Versão": body.get("Versão", ""),
+                "Observações": body.get("Observações", "")
+            }
+            rows.append(new_row)
+            
+            with open(CSV_PATH, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+                for r in rows:
+                    clean_row = {h: r.get(h, '') for h in headers}
+                    writer.writerow(clean_row)
+                    
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": True, "id": next_id}).encode('utf-8'))
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 print(f"Servidor web KANBAN iniciado!")
