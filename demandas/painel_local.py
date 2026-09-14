@@ -99,7 +99,16 @@ html_template = """
                 <div id="col-ia" class="p-3 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 kanban-col"></div>
             </div>
 
-            <!-- Col 3: Concluídas -->
+            <!-- Col 3: Standby (Aguardando Decisão) -->
+            <div class="bg-amber-50 rounded-xl w-96 flex flex-col max-h-[85vh] border border-amber-200 shadow-sm">
+                <div class="p-4 border-b border-amber-200 bg-amber-100/40 rounded-t-xl flex justify-between items-center">
+                    <h2 class="font-semibold text-amber-800 flex items-center gap-2"><i class="fa-solid fa-pause-circle text-amber-500"></i> Standby (Decisão)</h2>
+                    <span id="count-standby" class="bg-amber-200 text-amber-900 text-xs font-bold px-2 py-1 rounded-full">0</span>
+                </div>
+                <div id="col-standby" class="p-3 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 kanban-col"></div>
+            </div>
+
+            <!-- Col 4: Concluídas -->
             <div class="bg-emerald-50 rounded-xl w-96 flex flex-col max-h-[85vh] border border-emerald-100 shadow-sm">
                 <div class="p-4 border-b border-emerald-100 bg-emerald-100/30 rounded-t-xl flex justify-between items-center">
                     <h2 class="font-semibold text-emerald-800 flex items-center gap-2"><i class="fa-solid fa-check-circle text-emerald-500"></i> Solucionadas</h2>
@@ -368,14 +377,17 @@ html_template = """
 
             const backlog = filtered.filter(d => d.ia_status === 'backlog');
             const pending = filtered.filter(d => d.ia_status === 'pendente');
+            const standby = filtered.filter(d => d.ia_status === 'standby');
             const done = filtered.filter(d => d.ia_status === 'concluido');
 
             document.getElementById('col-backlog').innerHTML = backlog.map(createCard).join('');
             document.getElementById('col-ia').innerHTML = pending.map(createCard).join('');
+            document.getElementById('col-standby').innerHTML = standby.map(createCard).join('');
             document.getElementById('col-done').innerHTML = done.map(createCard).join('');
 
             document.getElementById('count-backlog').innerText = backlog.length;
             document.getElementById('count-ia').innerText = pending.length;
+            document.getElementById('count-standby').innerText = standby.length;
             document.getElementById('count-done').innerText = done.length;
         }
 
@@ -423,15 +435,31 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if os.path.exists(EXEC_DIR):
                 for file in glob.glob(f"{EXEC_DIR}/DEM-*.md"):
                     basename = os.path.basename(file).replace('DEM-', '').replace('.md', '')
-                    # Ler o arquivo para descobrir o status real e pegar o markdown
                     status_local = 'pendente'
                     with open(file, 'r', encoding='utf-8') as mf:
                         content = mf.read()
-                        # Extrair o status via string simples (pra não importar re obrigatoriamente se n precisar)
-                        for line in content.splitlines():
-                            if line.startswith('status:'):
-                                status_local = line.split('status:')[1].strip()
-                                break
+                        if content.startswith('---'):
+                            for line in content.split('\n'):
+                                if line.startswith('status:'):
+                                    status_local = line.split('status:')[1].strip()
+                                    break
+                    exec_status[basename] = {
+                        'status': status_local,
+                        'md_content': content
+                    }
+
+            STANDBY_DIR = "csv/standby.solution"
+            if os.path.exists(STANDBY_DIR):
+                for file in glob.glob(f"{STANDBY_DIR}/DEM-*.md"):
+                    basename = os.path.basename(file).replace('DEM-', '').replace('.md', '')
+                    status_local = 'standby'
+                    with open(file, 'r', encoding='utf-8') as mf:
+                        content = mf.read()
+                        if content.startswith('---'):
+                            for line in content.split('\n'):
+                                if line.startswith('status:'):
+                                    status_local = line.split('status:')[1].strip()
+                                    break
                     exec_status[basename] = {
                         'status': status_local,
                         'md_content': content

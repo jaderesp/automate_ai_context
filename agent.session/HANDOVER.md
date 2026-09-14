@@ -14,14 +14,14 @@ Este documento serve como o ponto de partida (memória) para a IA assim que inic
 
 ### Sessão: 11/09/2026 (Hoje)
 *ID da Sessão:* `agy --conversation=3ef7433b-d165-4c31-9f41-8206ab38a804`
-- **DEM-65 (Playback iOS)**: Concluída. Corrigido encode do `ffmpeg` para arquivos PTT inserindo as flags `-ac 1 -ar 16000` (Mono, 16kHz). Push feito com sucesso para o GitLab.
-- **DEM-46 (Retrieve 410 Áudios)**: Concluída. O worker tentava achar mídias recém-upadas na tabela `messages` causando erro. Substituímos para o padrão `client.DownloadMediaWithPath(...)`. Commit realizado localmente na branch `fix/dem-46-audio-retrieve`.
+- **DEM-64 (Playback iOS)**: Concluída. Corrigido encode do `ffmpeg` para arquivos PTT inserindo as flags `-ac 1 -ar 16000` (Mono, 16kHz). Push feito com sucesso para o GitLab.
+- **DEM-45 (Retrieve 410 Áudios)**: Concluída. O worker tentava achar mídias recém-upadas na tabela `messages` causando erro. Substituímos para o padrão `client.DownloadMediaWithPath(...)`. Commit realizado localmente na branch `fix/dem-45-audio-retrieve`.
 - **Painel Python (Kanban)**: Adicionado botão "+ Nova Demanda" e formulário. Eliminado os bugs de tela branca causados por Javascript cacheado e nulos no CSV.
-- **⚠️ NOTA DE CONTEXTO (MUITO IMPORTANTE):** O cliente relatou que "a Task 65 consertou o retrieve de áudios". **Isso é uma percepção incorreta de testes (Race Condition/Confusão).** A Task 65 apenas mudou o formato do áudio. O Retrieve só foi de fato consertado pela DEM-46 (Opção A). Se o cliente relatar anomalias, saiba que o Retrieve de PTT agora usa a tabela `midias` isoladamente e é seguro.
+- **⚠️ NOTA DE CONTEXTO (MUITO IMPORTANTE):** O cliente relatou que "a Task 64 consertou o retrieve de áudios". **Isso é uma percepção incorreta de testes (Race Condition/Confusão).** A Task 64 apenas mudou o formato do áudio. O Retrieve só foi de fato consertado pela DEM-45 (Opção A). Se o cliente relatar anomalias, saiba que o Retrieve de PTT agora usa a tabela `midias` isoladamente e é seguro.
 
 ---
 
-## 🚧 Pendências e Próximos Passos (Para o próximo agente iniciar)
-- [ ] **Retomar DEM-48**: O botão "Criar Instância" no Manager Service (`src/lib/subscription.ts`) continua ativo quando a assinatura vence. Precisa implementar bloqueio validando a data atual contra o `expiresIn`.
-- [ ] **Commit Manager Service**: Validar e enviar as modificações pendentes no repositório `manager-service` referentes à branch `fix/demanda-1-delete-user` e arquivos novos criados.
-- [ ] **Push da DEM-46**: O desenvolvedor precisa rodar `git push` no repositório do `worker-go` para subir a correção do retrieve.
+## Pendências e Próximos Passos
+- **Push Worker-Go:** Rodar `git push` no repositório `worker-go` para subir a correção da DEM-45.
+- **Push Manager-Service:** Rodar `git push` nas branches `fix/demanda-1-delete-user` e `fix/dem-48-block-expired` do `manager-service`.
+- **Push API-Service:** O usuário precisará realizar o push local da branch `fix/dem-66-messageid-length` no `api-service`.
