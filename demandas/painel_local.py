@@ -20,7 +20,56 @@ html_template = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UzAPI - Kanban de Demandas IA</title>
-    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=typography">
+        async function takeSnapshot() {
+            const modal = document.getElementById('taskModalContent');
+            const scrollArea = modal.querySelector('.overflow-y-auto');
+            const btn = event.currentTarget;
+            const originalIcon = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gerando...';
+            
+            // Salva estilos originais
+            const originalHeight = modal.style.height;
+            const originalOverflow = modal.style.overflow;
+            const origScrollOverflow = scrollArea.style.overflow;
+            const origScrollHeight = scrollArea.style.maxHeight;
+            
+            // Prepara para tirar foto inteira (expande)
+            modal.style.height = 'auto';
+            modal.style.overflow = 'visible';
+            scrollArea.style.overflow = 'visible';
+            scrollArea.style.maxHeight = 'none';
+            
+            try {
+                const canvas = await html2canvas(modal, {
+                    scale: 2, // Maior resolução
+                    backgroundColor: '#ffffff',
+                    windowWidth: modal.scrollWidth,
+                    windowHeight: modal.scrollHeight
+                });
+                
+                const imgData = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                // Nome do arquivo amigável
+                const safeName = document.getElementById('modalTitle').innerText.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                link.download = `demanda_${safeName}.png`;
+                link.href = imgData;
+                link.click();
+            } catch(e) {
+                console.error(e);
+                alert('Erro ao gerar imagem da demanda.');
+            } finally {
+                // Restaura interface
+                modal.style.height = originalHeight;
+                modal.style.overflow = originalOverflow;
+                scrollArea.style.overflow = origScrollOverflow;
+                scrollArea.style.maxHeight = origScrollHeight;
+                btn.innerHTML = originalIcon;
+            }
+        }
+
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -40,6 +89,7 @@ html_template = """
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body class="text-slate-800 h-screen flex flex-col">
 
@@ -125,9 +175,14 @@ html_template = """
         <div class="bg-white w-full md:w-1/2 h-full shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300" id="taskModalContent">
             <div class="flex justify-between items-center p-6 border-b border-slate-200">
                 <h2 class="text-xl font-bold text-slate-800" id="modalTitle">Detalhes da Demanda</h2>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
-                    <i class="fa-solid fa-xmark text-2xl"></i>
-                </button>
+                <div class="flex gap-4 items-center" data-html2canvas-ignore>
+                    <button onclick="takeSnapshot()" class="text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded text-sm font-bold transition-colors border border-blue-200 flex items-center gap-2">
+                        <i class="fa-solid fa-camera"></i> Snapshot
+                    </button>
+                    <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                        <i class="fa-solid fa-xmark text-2xl"></i>
+                    </button>
+                </div>
             </div>
             <div class="p-6 flex-1 overflow-y-auto custom-scrollbar">
                 <div class="flex gap-2 mb-6" id="modalBadges"></div>
@@ -400,7 +455,7 @@ html_template = """
                 await fetch('/api/ativar', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({id: d.ID, titulo: d.Título, modulo: d.Módulo})
+                    body: JSON.stringify({id: d.ID, titulo: d.Título, modulo: d.Módulo, descricao: d.Descrição})
                 });
                 await fetchDemands(); // Recarrega
             } catch(e) {
@@ -414,6 +469,54 @@ html_template = """
 
         // Inicializa
         fetchDemands();
+
+        async function takeSnapshot() {
+            const modal = document.getElementById('taskModalContent');
+            const scrollArea = modal.querySelector('.overflow-y-auto');
+            const btn = event.currentTarget;
+            const originalIcon = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gerando...';
+            
+            // Salva estilos originais
+            const originalHeight = modal.style.height;
+            const originalOverflow = modal.style.overflow;
+            const origScrollOverflow = scrollArea.style.overflow;
+            const origScrollHeight = scrollArea.style.maxHeight;
+            
+            // Prepara para tirar foto inteira (expande)
+            modal.style.height = 'auto';
+            modal.style.overflow = 'visible';
+            scrollArea.style.overflow = 'visible';
+            scrollArea.style.maxHeight = 'none';
+            
+            try {
+                const canvas = await html2canvas(modal, {
+                    scale: 2, // Maior resolução
+                    backgroundColor: '#ffffff',
+                    windowWidth: modal.scrollWidth,
+                    windowHeight: modal.scrollHeight
+                });
+                
+                const imgData = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                // Nome do arquivo amigável
+                const safeName = document.getElementById('modalTitle').innerText.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                link.download = `demanda_${safeName}.png`;
+                link.href = imgData;
+                link.click();
+            } catch(e) {
+                console.error(e);
+                alert('Erro ao gerar imagem da demanda.');
+            } finally {
+                // Restaura interface
+                modal.style.height = originalHeight;
+                modal.style.overflow = originalOverflow;
+                scrollArea.style.overflow = origScrollOverflow;
+                scrollArea.style.maxHeight = origScrollHeight;
+                btn.innerHTML = originalIcon;
+            }
+        }
     </script>
 </body>
 </html>
@@ -514,7 +617,7 @@ modulo: {body['modulo']}
 # 🚀 Histórico de Execução: {body['titulo']}
 
 ## 📌 Resumo do Problema
-(Aguardando IA ler a demanda)
+{body.get('descricao', 'Sem descrição fornecida.')}
 
 ## 🛠️ Solução Adotada
 (IA preencherá este campo após autorização)

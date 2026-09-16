@@ -1,0 +1,42 @@
+# Regras do Agente (Workflow de Demandas UzAPI)
+
+Este documento é a "Regra de Ouro" (AGENTS.md) do projeto. Todo agente Antigravity o lerá automaticamente ao iniciar. Você deve seguir este fluxo rigorosamente:
+
+> ⚠️ **AVISO CRÍTICO PARA TODOS OS AGENTES (TOLERÂNCIA ZERO):**
+> Jamais, em hipótese alguma, altere o código-fonte, apague arquivos ou faça commits sem a confirmação e autorização prévia e explícita do desenvolvedor (usuário). Até mesmo correções de pequenos erros gerados pelo próprio agente devem passar por aprovação. Se você desrespeitar isso, estará violando a regra primária do projeto.
+
+## 0. Recuperação de Memória (Handover)
+Antes de iniciar qualquer tarefa, você DEVE OBRIGATORIAMENTE ler o arquivo `ai.context/agent.session/HANDOVER.md`.
+Lá está o "Diário de Bordo" da última sessão, contendo pendências, contexto técnico e avisos cruciais deixados pelo agente anterior. Nunca inicie um trabalho sem antes ler este arquivo.
+Ao finalizar sua sessão ou tarefa, você DEVE registrar seu trabalho no `HANDOVER.md`, incluindo OBRIGATORIAMENTE o identificador da sua sessão de agente abaixo da data (ex: `agy --conversation=<conversation-id>`) para garantir a rastreabilidade.
+
+## 1. Triagem no Kanban (`ai.context/demandas/csv/exec/`)
+A interface visual gera um arquivo na pasta `ai.context/demandas/csv/exec/` (ex: `DEM-1.md`) com o metadado YAML `status: pendente`.
+- Ao iniciar o trabalho, você DEVE buscar e ler arquivos `.md` com `status: pendente` nessa pasta.
+
+## 2. Processo de Decisão (OBRIGATÓRIO)
+**NÃO EXECUTE ALTERAÇÕES OU COMMITS SEM ORDEM EXPRESSA!**
+O fluxo correto diante de qualquer intervenção (seja criação de features, correções de bugs, ou limpezas de repositório) é:
+1. **Analise:** Investigue o problema silenciosamente.
+2. **Apresente:** Relate ao desenvolvedor o panorama do impacto técnico da sua descoberta.
+3. **Proponha:** Ofereça a solução exata que pretende aplicar (Quais arquivos? Quais comandos? Opção A vs Opção B).
+4. **Pause:** Aguarde a leitura e a resposta.
+5. **Execute:** Apenas após receber o sinal verde ("pode fazer", "autorizado", "faça a Opção A"), prossiga com as alterações.
+
+## 2.1. Pausa Estratégica (Standby / Aguardando Decisão)
+Se a decisão depender de reuniões com a diretoria ou análise externa, e os trabalhos do agente precisarem ser suspensos nesta tarefa:
+- Mova o arquivo `.md` da demanda da pasta `exec/` para `ai.context/demandas/csv/standby.solution/`.
+- Altere o frontmatter do arquivo para `status: standby`.
+- Preencha o corpo do arquivo relatando de forma rica todo o panorama técnico investigado, as opções oferecidas (Opção A, Opção B), seus Prós e Contras, e os impactos de arquitetura. Este documento servirá de base (Dossiê) para a tomada de decisão da equipe.
+- Atualize o `HANDOVER.md` para sinalizar a parada.
+
+## 3. Conclusão e Atualização do Kanban (CRÍTICO)
+Após finalizar a demanda, você **NÃO DEVE** criar um arquivo novo.
+Você **DEVE OBRIGATORIAMENTE** editar o arquivo existente da demanda (seja em `exec/` ou `standby.solution/`):
+- Mova-o de volta para a pasta `exec/` (caso estivesse em `standby.solution/`).
+- Altere o frontmatter para `status: concluido`.
+- Preencha os campos vazios do arquivo com o Resumo, a Solução Adotada e a lista de arquivos.
+- **NÍVEL DE DETALHAMENTO EXIGIDO:** O preenchimento deve ser **extremamente técnico e detalhado**. Especifique exatamente o porquê do erro (arquitetura, ORM, restrições de banco), quais tabelas, colunas, chaves estrangeiras (FK) e trechos de código exatos falharam, além da lógica por trás da solução. Este documento servirá de base de conhecimento para reuniões técnicas com a liderança da equipe, então **nunca seja superficial**.
+- **REGISTRO DE HOMOLOGAÇÃO:** Sempre que uma validação prática for executada no ambiente (como testes de disparos, validação E2E via cURL/Postman, pareamento de devices), um bloco "Teste Prático e Homologação" **deve obrigatoriamente** ser adicionado ao documento, contendo os métodos usados (logs, payloads, cURL e resultados no cliente) para fins de auditoria e reaproveitamento pela equipe QA.
+
+Isto encerra o ciclo no Kanban e preserva os tokens.
