@@ -48,3 +48,8 @@ As tabelas de relacionamento vinculadas ao usuário (`user.id`) que impediam a e
 
 - Parte do conteúdo entrou na `main` por outra demanda: a coluna `impersonatedBy` em `src/database/schemas/users.schema.ts` (DEM-65). O restante do commit (10 arquivos) não foi conferido contra a `main` atual (`v0.3.57`).
 - **Encaminhamento:** verificar se a branch ainda aplica sem conflito sobre a `main`, enviar e abrir o MR, ou refazer a correção. O frontmatter foi mantido como `concluido`; revisar o status.
+
+---
+
+## 🔎 Conferência na reclassificação (15/10/2026)
+Mantida `concluido` por decisão do desenvolvedor (QA `Aprovado`). Registro técnico: na `origin/main` do `manager-service` as colunas `support_ticket_audit.actor_id` e `support_ticket_messages.author_id` continuam `.notNull()` com `onDelete: "set null"`, e `src/app/admin/users/page.tsx:296` não confere o `error` de `authClient.admin.removeUser`. A exclusão de usuário que tenha ticket de suporte/auditoria deve continuar falhando com mensagem de sucesso; usuários sem ticket são excluídos normalmente (provável cenário da aprovação). Se voltar a ser relatado, a correção é a descrita acima (commit local `cb6a568`, nunca publicado), refeita a partir da `dev`, com migração autorizada pelo Eduardo.

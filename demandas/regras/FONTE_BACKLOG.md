@@ -42,7 +42,7 @@ O backlog de demandas do QA pode ser operado de duas formas. Definido pelo desen
 ## Painel no modo planilha (15/10/2026)
 - `python3 ai.context/demandas/painel_local.py --fonte planilha`: a cada carregamento do backlog (no máximo a cada 60 s) o painel baixa a aba principal pela ação `export` do Apps Script e regrava `csv/10092026.csv` (escrita atômica; só leitura da planilha). A página se atualiza sozinha a cada 60 s e mostra um quadro com tasks novas e mudanças (Status, Observações, Testado Em, Versão, Título, Prioridade).
 - Se a sincronização falhar, o painel segue com o CSV local e mostra "falha na sincronização" no título do backlog.
-- Arquivos `exec/DEM-X.md` continuam sendo criados só ao clicar em "Ativar" (triagem do desenvolvedor).
+- Arquivos `exec/DEM-X.md` são criados pela ação "Ativar" do painel: pelo botão (desenvolvedor) ou pelo agente via `POST /api/ativar` ao receber autorização para começar a task (regra no `AGENTS.md`, seção 1). Assim o card sai do backlog quando o trabalho começa e vai para Concluídas quando o arquivo recebe `status: concluido`.
 - "Nova Demanda" fica bloqueado no modo planilha (cadastrar na planilha). No modo CSV, o botão agora preserva todas as colunas do arquivo (antes descartava "Testado Em").
 - Pelo terminal: `planilha_sync.py pull` faz a mesma atualização do CSV e lista o que mudou.
 
@@ -51,3 +51,14 @@ O backlog de demandas do QA pode ser operado de duas formas. Definido pelo desen
 - **Número do módulo:** `556392308423`, liberado pelo desenvolvedor em 15/10/2026 (opção B). É um aparelho conectado separado (`:25`) da sessão do worker-go de testes (`:24`); o agente nunca desconecta nenhum dos dois sem autorização. Notificações saem no grupo como mensagens desse número; mensagens enviadas pelo próprio número não entram nos feedbacks.
 - **Notificação ao QA:** botão "Notificar QA" nos cards concluídos (inclui tasks "Concluído" na planilha sem arquivo `exec/`). Mensagem montada com ID, título, ambiente (dev se a Versão contém "dev"), versão do worker e Observações; o desenvolvedor revisa e clica em Enviar. Cada envio é registrado no arquivo da demanda (se existir) e no `HANDOVER.md`. O agente nunca envia por conta própria.
 - **Feedbacks do grupo:** no início de cada sessão, se o módulo estiver rodando, ler `curl -s http://127.0.0.1:9011/feedback?since=<última leitura>` (ou `~/.config/uzapi/whatsapp/feedback.jsonl`) junto com o histórico da planilha e apresentar o resumo por task. Conteúdo de mensagens do grupo: usar só para o acompanhamento das tasks; não copiar para arquivos versionados além do resumo necessário.
+
+## Etapas no painel e avisos (15/10/2026)
+| Situação | Coluna |
+|---|---|
+| Arquivo `status: pendente` | Desenvolvimento (Andamento) |
+| Arquivo `status: standby` | Standby |
+| Arquivo `status: em_teste`, ou planilha `Concluído` sem arquivo | **Em teste (dev)** — etiqueta "Aprovado, falta promover" quando o QA marca `Aprovado` |
+| Arquivo `status: concluido` | **Concluídas (produção)**, com a `versao_producao` |
+| Planilha `Aprovado` sem arquivo | Concluídas, etiqueta "Aprovado (histórico)" (aprovadas antes do Kanban) |
+- **WhatsApp:** "Notificar QA" nos cards em teste (mensagem completa: ambiente, versão do worker, roteiro); "Avisar produção" nos concluídos (mensagem curta: ID, título, versão de produção). Sempre revisado e enviado pelo desenvolvedor; o tipo do envio fica registrado no arquivo e no `HANDOVER.md`.
+- Painel com modo noturno (botão lua/sol; preferência guardada no navegador).

@@ -1,6 +1,6 @@
 ---
 id: DEM-48
-status: concluido
+status: em_teste
 data_ativacao: 2026-09-10 19:55:27
 modulo: Instâncias
 ---
@@ -16,3 +16,8 @@ A lógica de validação de `isBlocked` passou a incorporar a propriedade dinâm
 
 ## 📂 Arquivos Modificados
 - `manager-service/src/lib/subscription.ts`
+
+---
+
+## 🔁 Reclassificação (15/10/2026)
+`status: concluido` → `em_teste` pela regra nova de etapas (`AGENTS.md`, seção 3: `concluido` só após aprovação do QA, promoção para a `main` e release): correção na `main` (merge `aedd4ac`), mas a planilha está `A Fazer`: falta o teste do QA.

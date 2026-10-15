@@ -1,6 +1,6 @@
 ---
 id: DEM-67
-status: concluido
+status: em_teste
 data_ativacao: 2026-09-15 14:41:48
 data_reabertura: 2026-10-07 15:00:00
 data_conclusao: 2026-10-08 09:30:00
@@ -200,3 +200,8 @@ Observação no backlog: *"resolvido quando o usuário clica manualmente em ATUA
 - **Validação** (`api-service` `instances.service.ts` `validateInstance`): lê `instances.expiresIn` do banco a cada chamada.
 - **Dev:** fluxo de pagamento real indisponível (Asaas do dev aponta para produção, ver DEM-43); teste provavelmente pelo ajuste manual do admin.
 - **Propostas (não executadas):** A) pedir ao QA o fluxo usado (pagamento × ajuste admin), usuário/ambiente, prints antes/depois e estado da instância; B) no ajuste do admin usar `syncInstancesExpiresIn` (branch `fix/dem-67-admin-billing-sync-instances` a partir da `dev`). Desenvolvedor informou que a task já está em reteste: aguardar o QA.
+
+---
+
+## 🔁 Reclassificação (15/10/2026)
+`status: concluido` → `em_teste` pela regra nova de etapas (`AGENTS.md`, seção 3: `concluido` só após aprovação do QA, promoção para a `main` e release): devolvida pelo QA e em reteste.

@@ -64,10 +64,24 @@ def wa_call(method, path, body=None):
         return 503, json.dumps(msg).encode("utf-8"), "application/json"
 
 
-def registrar_notificacao(task_id, texto):
+def ler_frontmatter(content):
+    """Campos simples (chave: valor) do bloco YAML inicial do arquivo da demanda."""
+    campos = {}
+    if content.startswith('---'):
+        for line in content.split('\n')[1:]:
+            if line.strip() == '---':
+                break
+            if ':' in line:
+                k, v = line.split(':', 1)
+                campos[k.strip()] = v.strip()
+    return campos
+
+
+def registrar_notificacao(task_id, texto, tipo='teste'):
     """Registra o envio no arquivo da demanda (se existir) e no HANDOVER.md."""
     agora = datetime.now().strftime('%d/%m/%Y %H:%M')
-    bloco = f"\n\n### 📣 Notificação enviada ao grupo ({agora})\n```\n{texto}\n```\n"
+    rotulo = "aviso de produção" if tipo == 'producao' else "notificação de teste"
+    bloco = f"\n\n### 📣 WhatsApp: {rotulo} enviada ao grupo ({agora})\n```\n{texto}\n```\n"
     for pasta in (EXEC_DIR, "csv/standby.solution"):
         arq = f"{pasta}/DEM-{task_id}.md"
         if os.path.exists(arq):
@@ -76,7 +90,7 @@ def registrar_notificacao(task_id, texto):
             break
     if os.path.exists(HANDOVER_PATH):
         with open(HANDOVER_PATH, 'a', encoding='utf-8') as f:
-            f.write(f"\n- **{agora} — WhatsApp:** notificação da DEM-{task_id} enviada ao grupo pelo painel (autorizada pelo desenvolvedor no envio).")
+            f.write(f"\n- **{agora} — WhatsApp:** {rotulo} da DEM-{task_id} enviada ao grupo pelo painel (autorizada pelo desenvolvedor no envio).")
 
 
 # Configurar para reaproveitar a porta se o servidor for reiniciado rapidamente
@@ -153,6 +167,44 @@ html_template = """
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         
+        /* Modo noturno: sobrescreve as classes utilitárias usadas no painel */
+        html.dark body { background-color: #0b1220; color: #e2e8f0; }
+        html.dark .bg-white { background-color: #1e293b; }
+        html.dark .bg-slate-50, html.dark [class~="bg-slate-50/50"] { background-color: #172033; }
+        html.dark .bg-slate-100 { background-color: #131c2e; }
+        html.dark .bg-slate-200 { background-color: #334155; }
+        html.dark .bg-blue-50 { background-color: #101b33; }
+        html.dark [class~="bg-blue-100/30"] { background-color: #14223f; }
+        html.dark .bg-amber-50 { background-color: #1f1a0e; }
+        html.dark [class~="bg-amber-100/40"] { background-color: #2a2210; }
+        html.dark .bg-violet-50 { background-color: #1a1430; }
+        html.dark [class~="bg-violet-100/40"] { background-color: #231a40; }
+        html.dark .bg-emerald-50 { background-color: #0d211b; }
+        html.dark [class~="bg-emerald-100/30"] { background-color: #102a22; }
+        html.dark .bg-blue-100, html.dark .bg-blue-200 { background-color: #1e3a8a; }
+        html.dark .bg-amber-100, html.dark .bg-amber-200 { background-color: #4a3410; }
+        html.dark .bg-violet-100, html.dark .bg-violet-200 { background-color: #3b2a70; }
+        html.dark .bg-emerald-100, html.dark .bg-emerald-200 { background-color: #064e3b; }
+        html.dark .bg-red-100 { background-color: #4c1d1d; }
+        html.dark .text-slate-900, html.dark .text-slate-800, html.dark .text-slate-700 { color: #e2e8f0; }
+        html.dark .text-slate-600, html.dark .text-slate-500 { color: #94a3b8; }
+        html.dark .text-blue-800, html.dark .text-blue-700 { color: #93c5fd; }
+        html.dark .text-amber-800, html.dark .text-amber-900 { color: #fcd34d; }
+        html.dark .text-violet-800, html.dark .text-violet-900, html.dark .text-violet-700 { color: #c4b5fd; }
+        html.dark .text-emerald-800, html.dark .text-emerald-700 { color: #6ee7b7; }
+        html.dark .text-red-700 { color: #fca5a5; }
+        html.dark .border-slate-100, html.dark .border-slate-200, html.dark .border-slate-300 { border-color: #334155; }
+        html.dark .border-blue-100, html.dark .border-blue-200 { border-color: #1e3a8a; }
+        html.dark .border-amber-200, html.dark .border-amber-300 { border-color: #713f12; }
+        html.dark .border-violet-200 { border-color: #4c3a8f; }
+        html.dark .border-emerald-100, html.dark .border-emerald-200 { border-color: #065f46; }
+        html.dark [class~="hover:bg-slate-50"]:hover, html.dark [class~="hover:bg-slate-200"]:hover { background-color: #273449; }
+        html.dark input, html.dark select, html.dark textarea { background-color: #0f172a; color: #e2e8f0; border-color: #334155; }
+        html.dark .prose, html.dark .prose :where(p, li, td, th, strong, h1, h2, h3, h4, code) { color: #e2e8f0; }
+        html.dark .prose :where(pre) { background-color: #0b1220; }
+        html.dark #loader { background: rgba(11,18,32,0.8); }
+        html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+
         /* Loading Overlay */
         #loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 50; justify-content: center; align-items: center; }
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
@@ -188,6 +240,7 @@ html_template = """
                         <option value="média">🟡 Média</option>
                         <option value="baixa">🟢 Baixa/Normal</option>
                     </select>
+                    <button id="themeBtn" onclick="toggleTheme()" title="Alternar modo noturno" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-3 rounded-md text-sm transition-colors shadow-sm"><i id="themeIcon" class="fa-solid fa-moon"></i></button>
                     <button id="waBtn" onclick="openWaModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
                         <i class="fa-brands fa-whatsapp text-emerald-600"></i> WhatsApp <span id="waDot" class="inline-block w-2 h-2 rounded-full bg-slate-300"></span>
                     </button>
@@ -233,10 +286,19 @@ html_template = """
                 <div id="col-standby" class="p-3 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 kanban-col"></div>
             </div>
 
-            <!-- Col 4: Concluídas -->
+            <!-- Col 4: Em teste (dev) -->
+            <div class="bg-violet-50 rounded-xl w-96 flex flex-col max-h-[85vh] border border-violet-200 shadow-sm">
+                <div class="p-4 border-b border-violet-200 bg-violet-100/40 rounded-t-xl flex justify-between items-center">
+                    <h2 class="font-semibold text-violet-800 flex items-center gap-2"><i class="fa-solid fa-flask text-violet-500"></i> Em teste (dev)</h2>
+                    <span id="count-teste" class="bg-violet-200 text-violet-900 text-xs font-bold px-2 py-1 rounded-full">0</span>
+                </div>
+                <div id="col-teste" class="p-3 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 kanban-col"></div>
+            </div>
+
+            <!-- Col 5: Concluídas (produção) -->
             <div class="bg-emerald-50 rounded-xl w-96 flex flex-col max-h-[85vh] border border-emerald-100 shadow-sm">
                 <div class="p-4 border-b border-emerald-100 bg-emerald-100/30 rounded-t-xl flex justify-between items-center">
-                    <h2 class="font-semibold text-emerald-800 flex items-center gap-2"><i class="fa-solid fa-check-circle text-emerald-500"></i> Solucionadas</h2>
+                    <h2 class="font-semibold text-emerald-800 flex items-center gap-2"><i class="fa-solid fa-check-circle text-emerald-500"></i> Concluídas (produção)</h2>
                     <span id="count-done" class="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">0</span>
                 </div>
                 <div id="col-done" class="p-3 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 kanban-col"></div>
@@ -542,6 +604,7 @@ html_template = """
         // ---------------- WhatsApp ----------------
         const NL = String.fromCharCode(10);
         let waState = { running: false, connected: false };
+        let waNotifyTipo = 'teste';
         let waView = null;
         let waPoll = null;
 
@@ -659,13 +722,24 @@ html_template = """
             return linhas.join(NL);
         }
 
-        function openNotify(id) {
+        function buildProdNotice(d) {
+            const linhas = [
+                '🚀 *DEM-' + d.ID + ' em produção*',
+                '📌 ' + (d.Título || ''),
+            ];
+            if (d.versao_producao) linhas.push('📦 Versão: ' + d.versao_producao);
+            linhas.push('Já disponível para os clientes.');
+            return linhas.join(NL);
+        }
+
+        function openNotify(id, tipo) {
             if (!waState.connected) { alert('WhatsApp desconectado.'); return; }
             if (!waState.group_jid) { alert('Configure o grupo no botão WhatsApp.'); openWaModal(); return; }
             const d = allDemands.find(x => x.ID === id);
             if (!d) return;
             waView = 'notify';
-            openWaShell('Notificar QA — DEM-' + id);
+            const producao = tipo === 'producao';
+            openWaShell((producao ? 'Avisar produção — DEM-' : 'Notificar QA — DEM-') + id);
             const body = document.getElementById('waModalBody');
             body.dataset.connected = '';
             body.innerHTML = '<p class="mb-2">Grupo: <strong id="ntGroup"></strong>. Revise e edite antes de enviar:</p>'
@@ -673,7 +747,8 @@ html_template = """
                 + '<div class="flex justify-end gap-2 mt-3"><button onclick="closeWaModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md">Cancelar</button>'
                 + '<button id="ntSend" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md"><i class="fa-brands fa-whatsapp"></i> Enviar</button></div>';
             document.getElementById('ntGroup').innerText = waState.group || waState.group_jid;
-            document.getElementById('ntText').value = buildNotice(d);
+            document.getElementById('ntText').value = producao ? buildProdNotice(d) : buildNotice(d);
+            waNotifyTipo = producao ? 'producao' : 'teste';
             document.getElementById('ntSend').onclick = () => sendNotify(id);
         }
 
@@ -683,7 +758,7 @@ html_template = """
             const btn = document.getElementById('ntSend');
             btn.disabled = true; btn.innerText = 'Enviando...';
             const res = await fetch('/api/wa/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id, text: text }) });
+                body: JSON.stringify({ id: id, text: text, tipo: waNotifyTipo }) });
             const r = await res.json();
             if (!res.ok) { alert(r.error || 'Falha no envio'); btn.disabled = false; btn.innerText = 'Enviar'; return; }
             closeWaModal();
@@ -730,8 +805,16 @@ html_template = """
                 actionBtn = `<button onclick="ativar('${d.ID}')" class="mt-3 w-full bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 font-medium py-1.5 px-3 rounded text-sm transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play text-xs"></i> Enviar p/ IA</button>`;
             } else if (d.ia_status === 'pendente') {
                 actionBtn = `<div class="mt-3 w-full bg-blue-100 text-blue-700 font-medium py-1.5 px-3 rounded text-sm flex items-center justify-center gap-2"><i class="fa-solid fa-hourglass-half"></i> Aguardando Código</div>`;
+            } else if (d.ia_status === 'em_teste') {
+                const aprovado = (d.Status || '').trim().toLowerCase() === 'aprovado';
+                actionBtn = aprovado
+                    ? `<div class="mt-3 w-full bg-amber-100 text-amber-800 font-medium py-1.5 px-3 rounded text-sm flex items-center justify-center gap-2"><i class="fa-solid fa-arrow-up-from-bracket"></i> Aprovado, falta promover</div>`
+                    : `<div class="mt-3 w-full bg-violet-100 text-violet-700 font-medium py-1.5 px-3 rounded text-sm flex items-center justify-center gap-2"><i class="fa-solid fa-flask"></i> Em teste no dev${d.Versão ? ' · worker ' + d.Versão : ''}</div>`;
+            } else if (d.ia_status === 'concluido') {
+                const rotulo = d.historico ? 'Aprovado (histórico)' : ('Em produção' + (d.versao_producao ? ' · ' + d.versao_producao : ''));
+                actionBtn = `<div class="mt-3 w-full bg-emerald-100 text-emerald-700 font-medium py-1.5 px-3 rounded text-sm flex items-center justify-center gap-2"><i class="fa-solid fa-check"></i> ${rotulo}</div>`;
             } else {
-                actionBtn = `<div class="mt-3 w-full bg-emerald-100 text-emerald-700 font-medium py-1.5 px-3 rounded text-sm flex items-center justify-center gap-2"><i class="fa-solid fa-check"></i> Executado</div>`;
+                actionBtn = `<div class="mt-3 w-full bg-slate-100 text-slate-600 font-medium py-1.5 px-3 rounded text-sm flex items-center justify-center gap-2"><i class="fa-solid fa-pause"></i> ${(d.ia_status || '').toUpperCase()}</div>`;
             }
 
             // Tratamento de quebras de linha e nulos para UX
@@ -750,7 +833,8 @@ html_template = """
                     <div class="text-xs text-slate-500 mb-2 font-medium bg-slate-50 inline-block px-1.5 py-0.5 rounded"><i class="fa-solid fa-cube mr-1"></i>${modulo}</div>
                     <p class="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2 rounded border border-slate-100 cursor-pointer" title="Clique para ver mais" onclick="openModal('${d.ID}')">${descPreview.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
                     ${actionBtn}
-                    ${(waState.connected && d.ia_status === 'concluido') ? `<button onclick="openNotify('${d.ID}')" class="mt-2 w-full bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium py-1.5 px-3 rounded text-sm transition-colors flex items-center justify-center gap-2"><i class="fa-brands fa-whatsapp"></i> Notificar QA</button>` : ''}
+                    ${(waState.connected && d.ia_status === 'em_teste') ? `<button onclick="openNotify('${d.ID}', 'teste')" class="mt-2 w-full bg-white hover:bg-violet-50 text-violet-700 border border-violet-200 font-medium py-1.5 px-3 rounded text-sm transition-colors flex items-center justify-center gap-2"><i class="fa-brands fa-whatsapp"></i> Notificar QA</button>` : ''}
+                    ${(waState.connected && d.ia_status === 'concluido' && !d.historico) ? `<button onclick="openNotify('${d.ID}', 'producao')" class="mt-2 w-full bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium py-1.5 px-3 rounded text-sm transition-colors flex items-center justify-center gap-2"><i class="fa-brands fa-whatsapp"></i> Avisar produção</button>` : ''}
                 </div>
             `;
         }
@@ -770,16 +854,19 @@ html_template = """
             const backlog = filtered.filter(d => d.ia_status === 'backlog');
             const pending = filtered.filter(d => d.ia_status === 'pendente');
             const standby = filtered.filter(d => d.ia_status === 'standby');
+            const teste = filtered.filter(d => d.ia_status === 'em_teste');
             const done = filtered.filter(d => d.ia_status === 'concluido');
 
             document.getElementById('col-backlog').innerHTML = backlog.map(createCard).join('');
             document.getElementById('col-ia').innerHTML = pending.map(createCard).join('');
             document.getElementById('col-standby').innerHTML = standby.map(createCard).join('');
+            document.getElementById('col-teste').innerHTML = teste.map(createCard).join('');
             document.getElementById('col-done').innerHTML = done.map(createCard).join('');
 
             document.getElementById('count-backlog').innerText = backlog.length;
             document.getElementById('count-ia').innerText = pending.length;
             document.getElementById('count-standby').innerText = standby.length;
+            document.getElementById('count-teste').innerText = teste.length;
             document.getElementById('count-done').innerText = done.length;
         }
 
@@ -803,6 +890,23 @@ html_template = """
         // Listeners para filtros
         document.getElementById('searchInput').addEventListener('input', renderBoard);
         document.getElementById('prioFilter').addEventListener('change', renderBoard);
+
+        // Modo noturno (preferência guardada só neste navegador)
+        function applyTheme(dark) {
+            document.documentElement.classList.toggle('dark', dark);
+            const ic = document.getElementById('themeIcon');
+            if (ic) ic.className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        }
+        function toggleTheme() {
+            const dark = !document.documentElement.classList.contains('dark');
+            applyTheme(dark);
+            try { localStorage.setItem('painelTema', dark ? 'dark' : 'light'); } catch (e) { /* sem armazenamento */ }
+        }
+        (function () {
+            let pref = null;
+            try { pref = localStorage.getItem('painelTema'); } catch (e) { /* sem armazenamento */ }
+            applyTheme(pref ? pref === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches);
+        })();
 
         // Inicializa
         fetchDemands().then(loadFonte);
@@ -901,16 +1005,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if os.path.exists(EXEC_DIR):
                 for file in glob.glob(f"{EXEC_DIR}/DEM-*.md"):
                     basename = os.path.basename(file).replace('DEM-', '').replace('.md', '')
-                    status_local = 'pendente'
                     with open(file, 'r', encoding='utf-8') as mf:
                         content = mf.read()
-                        if content.startswith('---'):
-                            for line in content.split('\n'):
-                                if line.startswith('status:'):
-                                    status_local = line.split('status:')[1].strip()
-                                    break
+                    fm = ler_frontmatter(content)
                     exec_status[basename] = {
-                        'status': status_local,
+                        'status': fm.get('status') or 'pendente',
+                        'versao_producao': fm.get('versao_producao', ''),
+                        'data_producao': fm.get('data_producao', ''),
                         'md_content': content
                     }
 
@@ -918,16 +1019,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if os.path.exists(STANDBY_DIR):
                 for file in glob.glob(f"{STANDBY_DIR}/DEM-*.md"):
                     basename = os.path.basename(file).replace('DEM-', '').replace('.md', '')
-                    status_local = 'standby'
                     with open(file, 'r', encoding='utf-8') as mf:
                         content = mf.read()
-                        if content.startswith('---'):
-                            for line in content.split('\n'):
-                                if line.startswith('status:'):
-                                    status_local = line.split('status:')[1].strip()
-                                    break
+                    fm = ler_frontmatter(content)
                     exec_status[basename] = {
-                        'status': status_local,
+                        'status': fm.get('status') or 'standby',
+                        'versao_producao': fm.get('versao_producao', ''),
+                        'data_producao': fm.get('data_producao', ''),
                         'md_content': content
                     }
 
@@ -943,15 +1041,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         # Definir a coluna correta (ia_status)
                         ia_status = 'backlog'
                         if row.get('ID') in exec_status:
-                            ia_status = exec_status[row.get('ID')]['status'].lower()
-                            row['md_content'] = exec_status[row.get('ID')]['md_content']
+                            info = exec_status[row.get('ID')]
+                            ia_status = info['status'].lower()
+                            row['md_content'] = info['md_content']
+                            row['versao_producao'] = info['versao_producao']
+                            row['data_producao'] = info['data_producao']
                         else:
                             # Ignorar as reprovadas no CSV original que não foram pra IA
                             if status_csv == 'reprovado':
                                 continue
-                            # Concluídas na planilha sem arquivo exec = liberadas para teste
+                            # "Concluído" na planilha sem arquivo = entregue no dev, em teste pelo QA.
+                            # Só vai para Concluídas (produção) quando o arquivo recebe status: concluido.
                             if status_csv in ['concluído', 'concluido']:
+                                ia_status = 'em_teste'
+                            # Aprovadas antes do Kanban, sem arquivo: histórico, tratadas como em produção.
+                            elif status_csv == 'aprovado':
                                 ia_status = 'concluido'
+                                row['historico'] = '1'
                                 
                         row['ia_status'] = ia_status
                         demandas.append(row)
@@ -983,7 +1089,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 texto = body.get('text', '')
                 code, resp, ctype = wa_call('POST', '/send', {"text": texto})
                 if code == 200 and task_id:
-                    registrar_notificacao(task_id, texto)
+                    registrar_notificacao(task_id, texto, body.get('tipo', 'teste'))
                 return self._send(code, resp, ctype)
             code, resp, ctype = wa_call('POST', sub, body)
             return self._send(code, resp, ctype)
