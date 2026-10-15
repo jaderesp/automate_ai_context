@@ -39,3 +39,12 @@ As tabelas de relacionamento vinculadas ao usuário (`user.id`) que impediam a e
 - `manager-service/src/database/schemas/support-ticket-messages.schema.ts`
 - `manager-service/src/database/schemas/users.schema.ts`
 - `manager-service/src/lib/auth.ts`
+
+---
+
+## 🔎 Atualização 06/10/2026: situação real da entrega
+
+> ⚠️ A correção descrita acima **nunca chegou à `main`**. O commit `cb6a568` (`fix(DEM-1): allow user deletion by relaxing schema constraints and adding impersonatedBy to sessions`, 14/09) existe apenas na branch local `fix/demanda-1-delete-user` do `manager-service`, sem push, sem merge e sem tag.
+
+- Parte do conteúdo entrou na `main` por outra demanda: a coluna `impersonatedBy` em `src/database/schemas/users.schema.ts` (DEM-65). O restante do commit (10 arquivos) não foi conferido contra a `main` atual (`v0.3.57`).
+- **Encaminhamento:** verificar se a branch ainda aplica sem conflito sobre a `main`, enviar e abrir o MR, ou refazer a correção. O frontmatter foi mantido como `concluido`; revisar o status.

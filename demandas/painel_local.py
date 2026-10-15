@@ -4,11 +4,80 @@ import csv
 import json
 import os
 import glob
+import sys
+import threading
+import time
+import argparse
 from datetime import datetime
 
-PORT = 8090
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "planilha"))
+
+PORT = 9000
 CSV_PATH = "csv/10092026.csv"
 EXEC_DIR = "csv/exec"
+
+# Fonte do backlog: "csv" (padrão) ou "planilha" (--fonte planilha).
+# No modo planilha uma thread regrava o CSV local a partir da planilha Google
+# a cada SYNC_INTERVAL segundos (somente leitura; ver regras/FONTE_BACKLOG.md).
+FONTE = "csv"
+SYNC_INTERVAL = 60
+_sync = {"ultima": None, "erro": None, "ultima_tentativa": 0.0, "novas": [], "mudancas": []}
+_sync_lock = threading.Lock()
+
+
+def sync_loop():
+    """Roda em segundo plano: a exportação da planilha leva dezenas de segundos e
+    não pode segurar as requisições da página, que leem sempre o CSV local atual."""
+    import planilha_sync
+    while True:
+        _sync["ultima_tentativa"] = time.time()
+        try:
+            r = planilha_sync.pull(os.path.abspath(CSV_PATH))
+            with _sync_lock:
+                _sync.update(ultima=datetime.now().strftime('%d/%m %H:%M:%S'), erro=None,
+                             novas=r["novas"], mudancas=r["mudancas"])
+        except Exception as err:  # mantém o CSV local e informa no painel
+            with _sync_lock:
+                _sync["erro"] = str(err)[:300]
+        time.sleep(SYNC_INTERVAL)
+
+
+# Conexão WhatsApp (ai.context/whatsapp/whatsapp-notify, só em 127.0.0.1).
+# As ações de WhatsApp do painel só funcionam com o número conectado.
+WA_URL = "http://127.0.0.1:9011"
+HANDOVER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "agent.session", "HANDOVER.md")
+
+
+def wa_call(method, path, body=None):
+    import urllib.request
+    import urllib.error
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    req = urllib.request.Request(WA_URL + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.status, resp.read(), resp.headers.get("Content-Type", "application/json")
+    except urllib.error.HTTPError as err:
+        return err.code, err.read(), err.headers.get("Content-Type", "application/json")
+    except Exception:
+        msg = {"error": "whatsapp-notify não está rodando", "running": False, "connected": False}
+        return 503, json.dumps(msg).encode("utf-8"), "application/json"
+
+
+def registrar_notificacao(task_id, texto):
+    """Registra o envio no arquivo da demanda (se existir) e no HANDOVER.md."""
+    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
+    bloco = f"\n\n### 📣 Notificação enviada ao grupo ({agora})\n```\n{texto}\n```\n"
+    for pasta in (EXEC_DIR, "csv/standby.solution"):
+        arq = f"{pasta}/DEM-{task_id}.md"
+        if os.path.exists(arq):
+            with open(arq, 'a', encoding='utf-8') as f:
+                f.write(bloco)
+            break
+    if os.path.exists(HANDOVER_PATH):
+        with open(HANDOVER_PATH, 'a', encoding='utf-8') as f:
+            f.write(f"\n- **{agora} — WhatsApp:** notificação da DEM-{task_id} enviada ao grupo pelo painel (autorizada pelo desenvolvedor no envio).")
+
 
 # Configurar para reaproveitar a porta se o servidor for reiniciado rapidamente
 socketserver.TCPServer.allow_reuse_address = True
@@ -119,6 +188,12 @@ html_template = """
                         <option value="média">🟡 Média</option>
                         <option value="baixa">🟢 Baixa/Normal</option>
                     </select>
+                    <button id="waBtn" onclick="openWaModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
+                        <i class="fa-brands fa-whatsapp text-emerald-600"></i> WhatsApp <span id="waDot" class="inline-block w-2 h-2 rounded-full bg-slate-300"></span>
+                    </button>
+                    <button id="fbBtn" onclick="openFeedback()" class="hidden bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-comments text-slate-500"></i> Feedbacks do grupo
+                    </button>
                     <button onclick="openNewTaskModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
                         <i class="fa-solid fa-plus"></i> Nova Demanda
                     </button>
@@ -134,16 +209,16 @@ html_template = """
             <!-- Col 1: Backlog -->
             <div class="bg-slate-100 rounded-xl w-96 flex flex-col max-h-[85vh] border border-slate-200 shadow-sm">
                 <div class="p-4 border-b border-slate-200 bg-slate-50/50 rounded-t-xl flex justify-between items-center">
-                    <h2 class="font-semibold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-inbox text-slate-400"></i> Backlog (CSV)</h2>
+                    <h2 class="font-semibold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-inbox text-slate-400"></i> <span id="backlog-title">Backlog (CSV)</span></h2>
                     <span id="count-backlog" class="bg-slate-200 text-slate-600 text-xs font-bold px-2 py-1 rounded-full">0</span>
                 </div>
                 <div id="col-backlog" class="p-3 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 kanban-col"></div>
             </div>
 
-            <!-- Col 2: Fila da IA -->
+            <!-- Col 2: Desenvolvimento (Andamento) -->
             <div class="bg-blue-50 rounded-xl w-96 flex flex-col max-h-[85vh] border border-blue-100 shadow-sm">
                 <div class="p-4 border-b border-blue-100 bg-blue-100/30 rounded-t-xl flex justify-between items-center">
-                    <h2 class="font-semibold text-blue-800 flex items-center gap-2"><i class="fa-solid fa-microchip text-blue-500"></i> Fila da IA (Pendente)</h2>
+                    <h2 class="font-semibold text-blue-800 flex items-center gap-2"><i class="fa-solid fa-code text-blue-500"></i> Desenvolvimento (Andamento)</h2>
                     <span id="count-ia" class="bg-blue-200 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">0</span>
                 </div>
                 <div id="col-ia" class="p-3 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 kanban-col"></div>
@@ -170,9 +245,20 @@ html_template = """
         </div>
     </main>
 
+    <!-- Modal WhatsApp (conexão, notificação e feedbacks) -->
+    <div id="waModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex justify-center items-center">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center">
+                <h2 id="waModalTitle" class="font-semibold text-slate-800">WhatsApp</h2>
+                <button onclick="closeWaModal()" class="text-slate-500 hover:text-slate-800"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="waModalBody" class="p-5 overflow-y-auto text-sm text-slate-700"></div>
+        </div>
+    </div>
+
     <!-- Modal de Detalhes da Demanda (50% da tela) -->
     <div id="taskModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex justify-end transition-opacity">
-        <div class="bg-white w-full md:w-1/2 h-full shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300" id="taskModalContent">
+        <div class="bg-white w-full md:w-1/2 h-full shadow-2xl flex flex-col overflow-hidden transform translate-x-full transition-transform duration-300" id="taskModalContent">
             <div class="flex justify-between items-center p-6 border-b border-slate-200">
                 <h2 class="text-xl font-bold text-slate-800" id="modalTitle">Detalhes da Demanda</h2>
                 <div class="flex gap-4 items-center" data-html2canvas-ignore>
@@ -184,7 +270,7 @@ html_template = """
                     </button>
                 </div>
             </div>
-            <div class="p-6 flex-1 overflow-y-auto custom-scrollbar">
+            <div class="p-6 flex-1 overflow-y-auto custom-scrollbar min-h-0">
                 <div class="flex gap-2 mb-6" id="modalBadges"></div>
                 
                 <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2" id="modalDescTitle">Descrição</h3>
@@ -271,6 +357,69 @@ html_template = """
 
     <script>
         let allDemands = [];
+        let fonteInfo = { fonte: 'csv' };
+        const WATCH_COLS = ['Status', 'Observações', 'Testado Em', 'Versão', 'Título', 'Prioridade'];
+
+        async function loadFonte() {
+            try {
+                fonteInfo = await (await fetch('/api/fonte')).json();
+            } catch (e) { return; }
+            const el = document.getElementById('backlog-title');
+            if (fonteInfo.fonte !== 'planilha') { el.innerText = 'Backlog (CSV)'; return; }
+            el.innerText = fonteInfo.erro
+                ? 'Backlog (Planilha · falha na sincronização)'
+                : 'Backlog (Planilha · ' + (fonteInfo.ultima || 'sincronizando') + ')';
+            el.title = fonteInfo.erro || ('Atualiza a cada ' + fonteInfo.intervalo + ' s');
+        }
+
+        function diffDemands(oldList, newList) {
+            const byId = {};
+            oldList.forEach(d => { byId[d.ID] = d; });
+            const msgs = [];
+            newList.forEach(d => {
+                const o = byId[d.ID];
+                if (!(d.Título || '').trim()) return;
+                if (!o || !(o.Título || '').trim()) { msgs.push('Nova: #' + d.ID + ' ' + d.Título); return; }
+                WATCH_COLS.forEach(c => {
+                    if ((o[c] || '').trim() !== (d[c] || '').trim()) {
+                        const depois = (d[c] || '').trim();
+                        msgs.push('#' + d.ID + ' ' + c + ': ' + (depois.length > 60 ? depois.slice(0, 57) + '...' : depois));
+                    }
+                });
+            });
+            return msgs;
+        }
+
+        function showUpdates(msgs) {
+            if (!msgs.length) return;
+            let box = document.getElementById('updates-box');
+            if (!box) {
+                box = document.createElement('div');
+                box.id = 'updates-box';
+                box.className = 'fixed bottom-4 right-4 z-40 max-w-md bg-amber-50 border border-amber-300 text-amber-900 text-sm rounded-lg shadow-lg p-4';
+                document.body.appendChild(box);
+            }
+            const hora = new Date().toLocaleTimeString();
+            box.innerHTML = '<div class="flex justify-between items-center mb-2"><strong>Atualizações da planilha (' + hora + ')</strong>'
+                + '<button onclick="this.closest(&quot;#updates-box&quot;).remove()" class="ml-4 text-amber-700">✕</button></div>'
+                + '<ul class="list-disc pl-5 space-y-1">' + msgs.slice(0, 15).map(m => '<li></li>').join('') + '</ul>'
+                + (msgs.length > 15 ? '<div class="mt-2">+' + (msgs.length - 15) + ' outras</div>' : '');
+            const items = box.querySelectorAll('li');
+            msgs.slice(0, 15).forEach((m, i) => { items[i].textContent = m; });
+        }
+
+        async function silentRefresh() {
+            if (fonteInfo.fonte !== 'planilha') return;
+            try {
+                const res = await fetch('/api/demandas');
+                const fresh = await res.json();
+                const msgs = diffDemands(allDemands, fresh);
+                allDemands = fresh;
+                renderBoard();
+                showUpdates(msgs);
+            } catch (e) { /* tenta de novo no próximo ciclo */ }
+            loadFonte();
+        }
 
         async function fetchDemands() {
             document.getElementById('loader').style.display = 'flex';
@@ -333,6 +482,10 @@ html_template = """
         }
 
         function openNewTaskModal() {
+            if (fonteInfo.fonte === 'planilha') {
+                alert('Modo planilha: cadastre a task na planilha Google. Ela aparece aqui na próxima sincronização (até 1 minuto).');
+                return;
+            }
             document.getElementById('newTaskForm').reset();
             const modal = document.getElementById('newTaskModal');
             const content = document.getElementById('newTaskModalContent');
@@ -386,6 +539,189 @@ html_template = """
             document.getElementById('loader').style.display = 'none';
         }
 
+        // ---------------- WhatsApp ----------------
+        const NL = String.fromCharCode(10);
+        let waState = { running: false, connected: false };
+        let waView = null;
+        let waPoll = null;
+
+        async function loadWa() {
+            try {
+                waState = await (await fetch('/api/wa/status')).json();
+            } catch (e) {
+                waState = { running: false, connected: false };
+            }
+            const dot = document.getElementById('waDot');
+            dot.className = 'inline-block w-2 h-2 rounded-full ' + (waState.connected ? 'bg-emerald-500' : (waState.running ? 'bg-amber-400' : 'bg-slate-300'));
+            document.getElementById('fbBtn').classList.toggle('hidden', !waState.connected);
+            renderBoard();
+            if (waView === 'conn') renderWaConn();
+        }
+
+        function openWaShell(title) {
+            document.getElementById('waModalTitle').innerText = title;
+            document.getElementById('waModal').classList.remove('hidden');
+        }
+
+        function closeWaModal() {
+            document.getElementById('waModal').classList.add('hidden');
+            waView = null;
+            if (waPoll) { clearInterval(waPoll); waPoll = null; }
+        }
+
+        function openWaModal() {
+            waView = 'conn';
+            openWaShell('Conexão WhatsApp');
+            renderWaConn();
+            if (!waPoll) waPoll = setInterval(loadWa, 2500);
+        }
+
+        async function renderWaConn() {
+            const body = document.getElementById('waModalBody');
+            if (!waState.running) {
+                body.innerHTML = '<p>O módulo de WhatsApp não está rodando. Inicie no terminal:</p>'
+                    + '<pre class="mt-2 bg-slate-100 p-3 rounded text-xs">ai.context/whatsapp/whatsapp-notify</pre>';
+                return;
+            }
+            if (!waState.connected) {
+                if (waState.has_qr) {
+                    body.innerHTML = '<p class="mb-3">No celular: WhatsApp → Aparelhos conectados → Conectar aparelho, e leia o QR:</p>'
+                        + '<img class="mx-auto border rounded" width="320" height="320" src="/api/wa/qr.png?t=' + Date.now() + '">'
+                        + '<p class="mt-3 text-xs text-slate-500">O código muda a cada poucos segundos; a imagem se atualiza sozinha.</p>';
+                } else if (waState.pairing) {
+                    body.innerHTML = '<p>Gerando QR code...</p>';
+                } else {
+                    body.innerHTML = '<p class="mb-4">Número desconectado. As ações de WhatsApp do painel ficam desativadas até conectar.</p>'
+                        + '<button onclick="waPair()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-md">Conectar (gerar QR code)</button>';
+                }
+                return;
+            }
+            if (body.dataset.connected === '1' && body.dataset.number === (waState.number || '')) return;
+            body.dataset.connected = '1';
+            body.dataset.number = waState.number || '';
+            body.innerHTML = '<p class="mb-3">Conectado ao número <strong>' + (waState.number || '?') + '</strong>.</p>'
+                + '<label class="block font-medium mb-1">Grupo da empresa</label>'
+                + '<div class="flex gap-2 mb-1"><select id="waGroup" class="flex-1 border border-slate-300 rounded-md py-2 px-3"><option>Carregando grupos...</option></select>'
+                + '<button onclick="waSaveGroup()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md">Salvar</button></div>'
+                + '<p id="waGroupInfo" class="text-xs text-slate-500 mb-5"></p>'
+                + '<button onclick="waLogout()" class="text-red-600 hover:text-red-800 text-sm"><i class="fa-solid fa-link-slash"></i> Desconectar número</button>';
+            document.getElementById('waGroupInfo').innerText = waState.group ? ('Grupo atual: ' + waState.group) : 'Nenhum grupo configurado.';
+            try {
+                const groups = await (await fetch('/api/wa/groups')).json();
+                const sel = document.getElementById('waGroup');
+                sel.innerHTML = '';
+                groups.forEach(g => {
+                    const o = document.createElement('option');
+                    o.value = g.jid; o.textContent = g.name || g.jid;
+                    if (g.jid === waState.group_jid) o.selected = true;
+                    sel.appendChild(o);
+                });
+            } catch (e) { /* lista indisponível */ }
+        }
+
+        async function waPair() {
+            await fetch('/api/wa/pair', { method: 'POST' });
+            loadWa();
+        }
+
+        async function waSaveGroup() {
+            const sel = document.getElementById('waGroup');
+            const opt = sel.options[sel.selectedIndex];
+            if (!opt) return;
+            const res = await fetch('/api/wa/group', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jid: opt.value, name: opt.textContent }) });
+            const r = await res.json();
+            if (!res.ok) { alert(r.error || 'Erro ao salvar grupo'); return; }
+            document.getElementById('waGroupInfo').innerText = 'Grupo atual: ' + opt.textContent;
+            loadWa();
+        }
+
+        async function waLogout() {
+            if (!confirm('Desconectar o número do WhatsApp? Será preciso ler o QR de novo.')) return;
+            await fetch('/api/wa/logout', { method: 'POST' });
+            const body = document.getElementById('waModalBody');
+            body.dataset.connected = '';
+            loadWa();
+        }
+
+        function buildNotice(d) {
+            const versao = (d.Versão || '').trim();
+            const dev = versao.toLowerCase().includes('dev');
+            const linhas = [
+                '✅ *DEM-' + d.ID + ' liberada para teste*',
+                '📌 ' + (d.Título || ''),
+                '🧪 Ambiente: ' + (dev ? 'dev — painel.dev.uzapi.com.br' : 'produção — painel.uzapi.com.br'),
+                '⚙️ Versão do worker: ' + (versao || 'a confirmar'),
+            ];
+            const obs = (d.Observações || '').trim();
+            if (obs) linhas.push('', '📝 ' + obs);
+            linhas.push('', 'Após o teste, atualize o status na planilha (Aprovado, ou Devolvido com o motivo).');
+            return linhas.join(NL);
+        }
+
+        function openNotify(id) {
+            if (!waState.connected) { alert('WhatsApp desconectado.'); return; }
+            if (!waState.group_jid) { alert('Configure o grupo no botão WhatsApp.'); openWaModal(); return; }
+            const d = allDemands.find(x => x.ID === id);
+            if (!d) return;
+            waView = 'notify';
+            openWaShell('Notificar QA — DEM-' + id);
+            const body = document.getElementById('waModalBody');
+            body.dataset.connected = '';
+            body.innerHTML = '<p class="mb-2">Grupo: <strong id="ntGroup"></strong>. Revise e edite antes de enviar:</p>'
+                + '<textarea id="ntText" rows="14" class="w-full border border-slate-300 rounded-md p-3 text-sm font-mono"></textarea>'
+                + '<div class="flex justify-end gap-2 mt-3"><button onclick="closeWaModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md">Cancelar</button>'
+                + '<button id="ntSend" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md"><i class="fa-brands fa-whatsapp"></i> Enviar</button></div>';
+            document.getElementById('ntGroup').innerText = waState.group || waState.group_jid;
+            document.getElementById('ntText').value = buildNotice(d);
+            document.getElementById('ntSend').onclick = () => sendNotify(id);
+        }
+
+        async function sendNotify(id) {
+            const text = document.getElementById('ntText').value.trim();
+            if (!text) return;
+            const btn = document.getElementById('ntSend');
+            btn.disabled = true; btn.innerText = 'Enviando...';
+            const res = await fetch('/api/wa/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, text: text }) });
+            const r = await res.json();
+            if (!res.ok) { alert(r.error || 'Falha no envio'); btn.disabled = false; btn.innerText = 'Enviar'; return; }
+            closeWaModal();
+            alert('Notificação da DEM-' + id + ' enviada ao grupo.');
+        }
+
+        async function openFeedback() {
+            if (!waState.connected) return;
+            waView = 'feedback';
+            openWaShell('Feedbacks do grupo (mensagens que citam tasks)');
+            const body = document.getElementById('waModalBody');
+            body.dataset.connected = '';
+            body.innerHTML = '<p>Carregando...</p>';
+            const items = await (await fetch('/api/wa/feedback')).json();
+            if (!items.length) { body.innerHTML = '<p>Nenhuma mensagem citando task até agora.</p>'; return; }
+            const porTask = {};
+            items.forEach(fb => (fb.tasks || []).forEach(t => { (porTask[t] = porTask[t] || []).push(fb); }));
+            body.innerHTML = '';
+            Object.keys(porTask).sort((a, b) => Number(b) - Number(a)).forEach(t => {
+                const h = document.createElement('h3');
+                h.className = 'font-semibold text-slate-800 mt-4 mb-2';
+                h.textContent = 'DEM-' + t;
+                body.appendChild(h);
+                porTask[t].slice().reverse().forEach(fb => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-slate-50 border border-slate-200 rounded p-2 mb-2';
+                    const meta = document.createElement('div');
+                    meta.className = 'text-xs text-slate-500 mb-1';
+                    meta.textContent = new Date(fb.data).toLocaleString() + ' — ' + (fb.autor || fb.numero || '');
+                    const txt = document.createElement('div');
+                    txt.className = 'whitespace-pre-wrap';
+                    txt.textContent = fb.texto;
+                    div.appendChild(meta); div.appendChild(txt);
+                    body.appendChild(div);
+                });
+            });
+        }
+
         function createCard(d) {
             const style = getPriorityStyle(d.Prioridade);
             let actionBtn = '';
@@ -414,6 +750,7 @@ html_template = """
                     <div class="text-xs text-slate-500 mb-2 font-medium bg-slate-50 inline-block px-1.5 py-0.5 rounded"><i class="fa-solid fa-cube mr-1"></i>${modulo}</div>
                     <p class="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2 rounded border border-slate-100 cursor-pointer" title="Clique para ver mais" onclick="openModal('${d.ID}')">${descPreview.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
                     ${actionBtn}
+                    ${(waState.connected && d.ia_status === 'concluido') ? `<button onclick="openNotify('${d.ID}')" class="mt-2 w-full bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium py-1.5 px-3 rounded text-sm transition-colors flex items-center justify-center gap-2"><i class="fa-brands fa-whatsapp"></i> Notificar QA</button>` : ''}
                 </div>
             `;
         }
@@ -468,7 +805,10 @@ html_template = """
         document.getElementById('prioFilter').addEventListener('change', renderBoard);
 
         // Inicializa
-        fetchDemands();
+        fetchDemands().then(loadFonte);
+        setInterval(silentRefresh, 60000);
+        loadWa();
+        setInterval(() => { if (!waPoll) loadWa(); }, 15000);
 
         async function takeSnapshot() {
             const modal = document.getElementById('taskModalContent');
@@ -523,7 +863,24 @@ html_template = """
 """
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    def _send(self, code, payload, ctype="application/json; charset=utf-8"):
+        self.send_response(code)
+        self.send_header('Content-type', ctype)
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(payload if isinstance(payload, bytes) else json.dumps(payload).encode('utf-8'))
+
     def do_GET(self):
+        from urllib.parse import urlparse
+        parsed = urlparse(self.path)
+        if parsed.path.startswith('/api/wa/'):
+            sub = parsed.path[len('/api/wa'):]
+            if sub not in ('/status', '/qr.png', '/groups', '/feedback'):
+                return self._send(404, {"error": "rota inválida"})
+            code, body, ctype = wa_call('GET', sub + ('?' + parsed.query if parsed.query else ''))
+            if sub == '/status' and code == 200:
+                st = json.loads(body); st['running'] = True; body = json.dumps(st).encode('utf-8')
+            return self._send(code, body, ctype)
         if self.path == '/':
             self.send_response(200)
             self.send_header('Content-type', 'text/html; charset=utf-8')
@@ -532,6 +889,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Expires', '0')
             self.end_headers()
             self.wfile.write(html_template.encode('utf-8'))
+        elif self.path == '/api/fonte':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json; charset=utf-8')
+            self.end_headers()
+            info = {"fonte": FONTE, "intervalo": SYNC_INTERVAL, "ultima": _sync["ultima"], "erro": _sync["erro"]}
+            self.wfile.write(json.dumps(info).encode('utf-8'))
         elif self.path == '/api/demandas':
             # Ler status reais baseados nos arquivos criados na pasta exec
             exec_status = {}
@@ -572,6 +935,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if os.path.exists(CSV_PATH):
                 with open(CSV_PATH, 'r', encoding='utf-8') as f:
                     for row in csv.DictReader(f):
+                        # Linhas pré-numeradas da planilha (só ID, sem título) não são tasks.
+                        if not (row.get('ID') or '').strip() or not (row.get('Título') or '').strip():
+                            continue
                         status_csv = row.get('Status', '').lower()
                         
                         # Definir a coluna correta (ia_status)
@@ -581,8 +947,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                             row['md_content'] = exec_status[row.get('ID')]['md_content']
                         else:
                             # Ignorar as reprovadas no CSV original que não foram pra IA
-                            if status_csv in ['reprovado', 'concluído', 'concluido']:
+                            if status_csv == 'reprovado':
                                 continue
+                            # Concluídas na planilha sem arquivo exec = liberadas para teste
+                            if status_csv in ['concluído', 'concluido']:
+                                ia_status = 'concluido'
                                 
                         row['ia_status'] = ia_status
                         demandas.append(row)
@@ -603,6 +972,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        if self.path.startswith('/api/wa/'):
+            sub = self.path[len('/api/wa'):]
+            if sub not in ('/pair', '/logout', '/group', '/send'):
+                return self._send(404, {"error": "rota inválida"})
+            length = int(self.headers.get('Content-Length', 0) or 0)
+            body = json.loads(self.rfile.read(length) or b'{}')
+            if sub == '/send':
+                task_id = str(body.get('id', '')).strip()
+                texto = body.get('text', '')
+                code, resp, ctype = wa_call('POST', '/send', {"text": texto})
+                if code == 200 and task_id:
+                    registrar_notificacao(task_id, texto)
+                return self._send(code, resp, ctype)
+            code, resp, ctype = wa_call('POST', sub, body)
+            return self._send(code, resp, ctype)
         if self.path == '/api/ativar':
             content_length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(content_length))
@@ -637,14 +1021,25 @@ modulo: {body['modulo']}
         elif self.path == '/api/nova-demanda':
             content_length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(content_length))
-            
+
+            if FONTE == "planilha":
+                self.send_response(409)
+                self.send_header('Content-type', 'application/json; charset=utf-8')
+                self.end_headers()
+                msg = "Modo planilha: cadastre a task na planilha Google; ela aparece aqui na próxima sincronização."
+                self.wfile.write(json.dumps({"success": False, "error": msg}).encode('utf-8'))
+                return
+
             next_id = 1
             rows = []
-            headers = ["ID","Tipo","Título","Descrição","Módulo","Prioridade","Status","Responsável","Data de Criação","Versão","Observações"]
+            headers = ["ID","Tipo","Título","Descrição","Módulo","Prioridade","Status","Responsável","Data de Criação","Versão","Observações","Testado Em"]
             
             if os.path.exists(CSV_PATH):
                 with open(CSV_PATH, 'r', encoding='utf-8') as f:
                     reader = csv.DictReader(f)
+                    if reader.fieldnames:
+                        # Mantém as colunas do arquivo (antes "Testado Em" era descartada ao regravar).
+                        headers = list(reader.fieldnames)
                     for r in reader:
                         rows.append(r)
                         try:
@@ -681,8 +1076,17 @@ modulo: {body['modulo']}
             self.end_headers()
             self.wfile.write(json.dumps({"success": True, "id": next_id}).encode('utf-8'))
 
+_args = argparse.ArgumentParser(description="Painel local de demandas")
+_args.add_argument("--fonte", choices=["csv", "planilha"], default="csv",
+                   help="csv (padrão) ou planilha (sincroniza da planilha Google a cada 60 s)")
+FONTE = _args.parse_args().fonte
+
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-print(f"Servidor web KANBAN iniciado!")
+print(f"Servidor web KANBAN iniciado! Fonte do backlog: {FONTE}")
 print(f"Acesse: http://localhost:{PORT} no seu navegador.")
-socketserver.TCPServer.allow_reuse_address = True
-socketserver.TCPServer(("", PORT), Handler).serve_forever()
+if FONTE == "planilha":
+    threading.Thread(target=sync_loop, daemon=True).start()
+    print(f"Sincronizando com a planilha a cada {SYNC_INTERVAL} s (em segundo plano).")
+socketserver.ThreadingTCPServer.allow_reuse_address = True
+socketserver.ThreadingTCPServer.daemon_threads = True
+socketserver.ThreadingTCPServer(("", PORT), Handler).serve_forever()

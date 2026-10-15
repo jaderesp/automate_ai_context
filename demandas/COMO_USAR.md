@@ -28,6 +28,10 @@ python3 ai.context/demandas/painel_local.py
 ```
 Acesse o endereço exibido (geralmente **http://localhost:8090**) no seu navegador. Lá você verá o seu Backlog lindamente organizado com base nas regras da empresa (`Prioridade Alta` -> `Média` -> `Baixa`).
 
+> **Modo planilha (backlog direto da planilha Google):** `python3 ai.context/demandas/painel_local.py --fonte planilha`. O backlog é atualizado da planilha a cada 60 s, sem exportar CSV, e a página mostra o que mudou. Regras e configuração em `regras/FONTE_BACKLOG.md`.
+
+> **WhatsApp (notificar o QA e ler feedbacks do grupo):** rode `ai.context/whatsapp/whatsapp-notify` e use o botão **WhatsApp** do painel para ler o QR e escolher o grupo. Detalhes em `ai.context/whatsapp/README.md`.
+
 ### Passo 3: Ativar uma Demanda ⚡
 No navegador, clique no botão **"Ativar Demanda para a IA"** na tarefa que você quer resolver no dia. 
 - *O que acontece por trás dos panos?* O sistema irá criar automaticamente um arquivo Markdown (Ex: `DEM-1.md`) dentro da pasta `csv/exec/` com o metadado `status: pendente`.

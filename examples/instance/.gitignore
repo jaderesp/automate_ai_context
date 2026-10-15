@@ -1,0 +1,9 @@
+# Sessão pareada do WhatsApp (chaves + histórico), mídias, binário e logs: NUNCA versionar
+db/
+medias/
+bin/
+*.log
+qr.png
+e2e_result*.json
+api_token.txt
+*.pid

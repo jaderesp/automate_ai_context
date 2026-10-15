@@ -21,3 +21,13 @@ Isso impede consultas sujas, limpa o código e mantém 100% da compatibilidade c
 
 ## 📂 Arquivos Modificados
 - `worker-go/services/medias.go`
+
+---
+
+## 🔎 Atualização 06/10/2026: situação real da entrega
+
+> ⚠️ A correção descrita acima **nunca chegou à `main`**. O commit `91c14be` (`fix(media): remove dependência de 'messages' no retrieve de PTT (DEM-46)`, 11/09) existe apenas na branch local `fix/dem-45-audio-retrieve`, sem push, sem merge e sem tag.
+
+- Em 06/10 o programador chefe (Eduardo) tratou o mesmo ponto por outro caminho, direto na `main`: commit `7c740e4`, release **`v0.0.94`** — `services/medias.go` passou a baixar o áudio com `client.DownloadMediaWithPath(...)` e `GetMessageByMediaKey` foi removida de `database/messageStore.go`. A branch local `fix/dem-45-audio-retrieve` ficou **obsoleta**.
+- **Defeito observado na `v0.0.94` (presente também na `v0.0.95`):** o download de áudio pelo `id` de mídia (`GET /v1/{mediaId}`) retorna **410** (`download failed with status code 400`). No caso `utils.IsAudio` de `services/medias.go`, o parâmetro `mmsType` de `DownloadMediaWithPath` recebe o MIME (`audio/ogg; codecs=opus`). Reproduzido na instância de teste com um áudio recebido e com áudios enviados pela API (arquivos ainda não baixados em disco). Em cópia descartável, trocar o argumento por `"audio"` fez o download funcionar (121.743 bytes).
+- **Situação:** o sintoma da demanda (retrieve de áudio PTT retornando 410) **não está resolvido** pelo que foi testado localmente. Correção de uma linha proposta e ainda **sem decisão**. O frontmatter foi mantido como `concluido`; revisar o status.
