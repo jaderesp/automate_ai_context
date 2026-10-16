@@ -5,6 +5,9 @@ data_ativacao: 2026-09-16 11:00:13
 data_reabertura: 2026-10-07 15:00:00
 data_conclusao: 2026-09-25 11:20:00
 modulo: Contratar Instâncias
+data_standby: 2026-10-14
+aguardando: Eduardo
+pendencia: corrigir URL e chave do Asaas no dev (hoje chama api.asaas.com e recebe 401) e trocar a chave exposta no log; depois o QA retesta as tasks #43 e #82
 ---
 
 # 🚀 Histórico de Execução: Divergência entre data de vencimento das assinaturas no Asaas e na UzAPI
@@ -282,3 +285,10 @@ Além disso: rotacionar a chave de produção; destravar a conta de teste do QA 
 - Confirma que é configuração do ambiente dev, sem mudança de código. Não ficou explícito se a mudança é só do domínio de callback (`ASAAS_CALLBACK_URL`) ou do ambiente Asaas (`ASAAS_ENVIRONMENT=sandbox` + chave e carteira do sandbox); o recomendado é o sandbox.
 - Ainda sem resposta: rotação da chave de produção exposta no log, desbloqueio da conta de teste do QA e se o bug do `PENDING` vira demanda.
 - Próximo passo: após o ajuste no dev, QA repete o roteiro com conta nova.
+
+## 🔎 Evidência no log do `manager-service` (16/10/2026, só leitura)
+- Trecho de log colado pelo desenvolvedor: em **15/10/2026 19:29:17 (-03:00)** o `manager-service` fez uma chamada HTTP (axios) para **`api.asaas.com`** (host do Asaas de **produção**) e recebeu **`status: 401`** com `data: { errors: [...] }`.
+- **Correlação com o reteste:** às 19:40 do mesmo dia o QA reprovou a DEM-43 no dev ("Contratar uma instância no plano recorrente sem efetuar o pagamento: Erro"), e a DEM-82 ficou bloqueada pelo mesmo erro. Se o log é do ambiente dev, confirma o diagnóstico já alinhado com o Eduardo: **o dev aponta para a URL de produção do Asaas com uma chave que não vale lá** (provavelmente a do sandbox) → toda criação de cliente/cobrança falha com 401.
+- **Risco de segurança:** o erro do axios é despejado inteiro no log (`console.error(err)`), e o objeto inclui `config.headers` com o **`access_token` do Asaas**. A chave fica gravada no log do pod. Reforça a pendência de **rotacionar a chave** e sugere ajuste no código: logar só `status` e `response.data.errors` (task à parte, se aprovada).
+- Nenhum dado sensível foi copiado para este arquivo.
+- **Para o Eduardo:** corrigir `ASAAS` URL/chave do dev (sandbox `api-sandbox.asaas.com` + chave do sandbox, ou URL e chave de produção, conforme a decisão); depois o QA retesta a DEM-43 e a DEM-82.

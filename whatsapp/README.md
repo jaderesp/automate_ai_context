@@ -13,6 +13,9 @@ cd ai.context/whatsapp
 CGO_ENABLED=1 GOPROXY=off go build -o whatsapp-notify .   # compila com o cache local do worker-go
 ./whatsapp-notify
 ```
+Rotas: `/status`, `/pair`, `/qr.png`, `/logout`, `/groups`, `/group`, `/participants` (membros do grupo configurado, para menção), `/send` (`{"text", "mentions": [jid...]}`; menções só de membros do grupo), `/feedback`.
+
+Ou, junto com o painel: `ai.context/servicos.sh start` (ver `stop`, `restart`, `status`, `logs`; logs em `~/.config/uzapi/servicos/`).
 Depois, no painel (`painel_local.py`), botão **WhatsApp** → Conectar → ler o QR → escolher o grupo.
 
 ## Cuidados

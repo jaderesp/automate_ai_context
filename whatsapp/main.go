@@ -96,6 +96,7 @@ func main() {
 	mux.HandleFunc("/groups", a.handleGroups)
 	mux.HandleFunc("/group", a.handleSetGroup)
 	mux.HandleFunc("/send", a.handleSend)
+	mux.HandleFunc("/participants", a.handleParticipants)
 	mux.HandleFunc("/feedback", a.handleFeedback)
 	log.Printf("whatsapp-notify em http://%s (dados em %s)", listenAddr, a.dir)
 	log.Fatal(http.ListenAndServe(listenAddr, mux))
@@ -330,7 +331,8 @@ func (a *app) handleSetGroup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 
-// POST /send {"text"}: envia texto para o grupo configurado.
+// POST /send {"text","mentions"}: envia texto para o grupo configurado; mentions = JIDs
+// de membros do grupo (de /participants) citados no texto como @<user>.
 func (a *app) handleSend(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, 405, map[string]string{"error": "use POST"})
@@ -339,7 +341,10 @@ func (a *app) handleSend(w http.ResponseWriter, r *http.Request) {
 	if !a.requireConnected(w) {
 		return
 	}
-	var body struct{ Text string }
+	var body struct {
+		Text     string
+		Mentions []string // JIDs de membros do grupo citados com @ no texto
+	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Text) == "" {
 		writeJSON(w, 400, map[string]string{"error": "texto vazio"})
 		return
@@ -356,12 +361,102 @@ func (a *app) handleSend(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
-	resp, err := a.client.SendMessage(context.Background(), jid, &waE2E.Message{Conversation: proto.String(body.Text)})
+	msg := &waE2E.Message{Conversation: proto.String(body.Text)}
+	if len(body.Mentions) > 0 {
+		members, err := a.groupMembers(jid)
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			return
+		}
+		var mentioned []string
+		for _, m := range body.Mentions {
+			if !members[m] {
+				writeJSON(w, 400, map[string]string{"error": "menção fora do grupo: " + m})
+				return
+			}
+			mentioned = append(mentioned, m)
+		}
+		msg = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text:        proto.String(body.Text),
+			ContextInfo: &waE2E.ContextInfo{MentionedJID: mentioned},
+		}}
+	}
+	resp, err := a.client.SendMessage(context.Background(), jid, msg)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, 200, map[string]interface{}{"ok": true, "id": resp.ID, "timestamp": resp.Timestamp})
+}
+
+// GET /participants: membros do grupo configurado (jid para menção, nome, número).
+func (a *app) handleParticipants(w http.ResponseWriter, r *http.Request) {
+	if !a.requireConnected(w) {
+		return
+	}
+	a.mu.Lock()
+	group := a.cfg.GroupJID
+	a.mu.Unlock()
+	if group == "" {
+		writeJSON(w, 409, map[string]string{"error": "nenhum grupo configurado"})
+		return
+	}
+	jid, err := types.ParseJID(group)
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	ctx := context.Background()
+	info, err := a.client.GetGroupInfo(ctx, jid)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	own := ""
+	if a.client.Store.ID != nil {
+		own = a.client.Store.ID.User
+	}
+	ownLID := a.client.Store.LID.User
+	out := []map[string]string{}
+	for _, p := range info.Participants {
+		if p.JID.User == own || p.PhoneNumber.User == own || (ownLID != "" && p.LID.User == ownLID) {
+			continue // o próprio número do módulo não é mencionável
+		}
+		nome := p.DisplayName
+		for _, alvo := range []types.JID{p.JID, p.PhoneNumber, p.LID} {
+			if nome != "" || alvo.IsEmpty() {
+				continue
+			}
+			if c, err := a.client.Store.Contacts.GetContact(ctx, alvo); err == nil && c.Found {
+				for _, n := range []string{c.FullName, c.FirstName, c.PushName, c.BusinessName} {
+					if n != "" {
+						nome = n
+						break
+					}
+				}
+			}
+		}
+		out = append(out, map[string]string{
+			"jid":    p.JID.ToNonAD().String(),
+			"user":   p.JID.User,
+			"nome":   nome,
+			"numero": p.PhoneNumber.User,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i]["nome"]) < strings.ToLower(out[j]["nome"]) })
+	writeJSON(w, 200, out)
+}
+
+func (a *app) groupMembers(group types.JID) (map[string]bool, error) {
+	info, err := a.client.GetGroupInfo(context.Background(), group)
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]bool{}
+	for _, p := range info.Participants {
+		m[p.JID.ToNonAD().String()] = true
+	}
+	return m, nil
 }
 
 // GET /feedback?since=RFC3339: mensagens do grupo que citam tasks.
@@ -403,4 +498,3 @@ func (a *app) saveConfig() error {
 	data, _ := json.MarshalIndent(a.cfg, "", "  ")
 	return os.WriteFile(filepath.Join(a.dir, "config.json"), data, 0o600)
 }
-

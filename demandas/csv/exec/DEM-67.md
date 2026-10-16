@@ -1,10 +1,13 @@
 ---
 id: DEM-67
-status: em_teste
+status: concluido
 data_ativacao: 2026-09-15 14:41:48
 data_reabertura: 2026-10-07 15:00:00
 data_conclusao: 2026-10-08 09:30:00
 modulo: Contratar Instâncias
+data_producao: 2026-10-07
+versao_producao: api-service v1.57.6
+versao_worker: v0.0.98
 ---
 
 # 🚀 Histórico de Execução: Instancia expirando mesmo com assiantura ativa
@@ -205,3 +208,18 @@ Observação no backlog: *"resolvido quando o usuário clica manualmente em ATUA
 
 ## 🔁 Reclassificação (15/10/2026)
 `status: concluido` → `em_teste` pela regra nova de etapas (`AGENTS.md`, seção 3: `concluido` só após aprovação do QA, promoção para a `main` e release): devolvida pelo QA e em reteste.
+
+## 🚀 Promoção para produção / Encerramento (16/10/2026)
+- A correção (Opção A, commit `0d5c661` → MR `85f43f5` na `main` do `api-service`) já estava em produção desde a release **`api-service v1.57.6`** (07/10, commit `6931e5e`, tag `v1.57.6`); não houve promoção nova.
+- QA retestou em 15/10 (dev): alterar o vencimento da instância, criar instância nova e conferir que o vencimento da nova acompanha o da atualizada → **Aprovado** (planilha `Devolvido` → `Aprovado`, 15/10 22:43; resumo no grupo).
+- `status: concluido` com `versao_producao: api-service v1.57.6`, autorizado pelo desenvolvedor em 16/10.
+- Fora deste encerramento: a observação do QA de 15/10 (expiração da instância atualizar sozinha na migração de TRIAL para pagante, sem clicar em "Atualizar Instância") segue registrada na análise acima; se for desejada, vira task própria.
+
+
+### 📣 WhatsApp: aviso de produção enviada ao grupo (16/10/2026 10:30)
+```
+🚀 *Task #67 em produção*
+📌 Instancia expirando mesmo com assiantura ativa
+📦 Versão: api-service v1.57.6
+Já disponível para os clientes.
+```

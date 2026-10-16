@@ -80,7 +80,7 @@ def ler_frontmatter(content):
 def registrar_notificacao(task_id, texto, tipo='teste'):
     """Registra o envio no arquivo da demanda (se existir) e no HANDOVER.md."""
     agora = datetime.now().strftime('%d/%m/%Y %H:%M')
-    rotulo = "aviso de produção" if tipo == 'producao' else "notificação de teste"
+    rotulo = {'producao': "aviso de produção", 'standby': "cobrança de alinhamento"}.get(tipo, "notificação de teste")
     bloco = f"\n\n### 📣 WhatsApp: {rotulo} enviada ao grupo ({agora})\n```\n{texto}\n```\n"
     for pasta in (EXEC_DIR, "csv/standby.solution"):
         arq = f"{pasta}/DEM-{task_id}.md"
@@ -90,7 +90,7 @@ def registrar_notificacao(task_id, texto, tipo='teste'):
             break
     if os.path.exists(HANDOVER_PATH):
         with open(HANDOVER_PATH, 'a', encoding='utf-8') as f:
-            f.write(f"\n- **{agora} — WhatsApp:** {rotulo} da DEM-{task_id} enviada ao grupo pelo painel (autorizada pelo desenvolvedor no envio).")
+            f.write(f"\n- **{agora} — WhatsApp:** {rotulo} da DEM-{task_id} enviada ao grupo pelo painel (autorizada pelo desenvolvedor no envio).\n")
 
 
 # Configurar para reaproveitar a porta se o servidor for reiniciado rapidamente
@@ -218,7 +218,7 @@ html_template = """
 
     <!-- Header & Filters -->
     <header class="bg-white shadow-sm border-b border-slate-200 z-10 sticky top-0">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
                     <div class="bg-blue-600 text-white p-2 rounded-lg"><i class="fa-solid fa-robot"></i></div>
@@ -229,7 +229,7 @@ html_template = """
                 </div>
 
                 <!-- Dynamic Filters -->
-                <div class="flex flex-wrap items-center gap-3">
+                <div class="flex flex-wrap items-center md:justify-end gap-3">
                     <div class="relative">
                         <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
                         <input type="text" id="searchInput" placeholder="Buscar título ou ID..." class="pl-9 pr-4 py-2 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full md:w-64 outline-none transition-all">
@@ -240,14 +240,14 @@ html_template = """
                         <option value="média">🟡 Média</option>
                         <option value="baixa">🟢 Baixa/Normal</option>
                     </select>
-                    <button id="themeBtn" onclick="toggleTheme()" title="Alternar modo noturno" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-3 rounded-md text-sm transition-colors shadow-sm"><i id="themeIcon" class="fa-solid fa-moon"></i></button>
-                    <button id="waBtn" onclick="openWaModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
+                    <button id="themeBtn" onclick="toggleTheme()" title="Alternar modo noturno" class="whitespace-nowrap shrink-0 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-3 rounded-md text-sm transition-colors shadow-sm"><i id="themeIcon" class="fa-solid fa-moon"></i></button>
+                    <button id="waBtn" onclick="openWaModal()" class="whitespace-nowrap shrink-0 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
                         <i class="fa-brands fa-whatsapp text-emerald-600"></i> WhatsApp <span id="waDot" class="inline-block w-2 h-2 rounded-full bg-slate-300"></span>
                     </button>
-                    <button id="fbBtn" onclick="openFeedback()" class="hidden bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
+                    <button id="fbBtn" onclick="openFeedback()" class="whitespace-nowrap shrink-0 hidden bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
                         <i class="fa-solid fa-comments text-slate-500"></i> Feedbacks do grupo
                     </button>
-                    <button onclick="openNewTaskModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
+                    <button onclick="openNewTaskModal()" class="whitespace-nowrap shrink-0 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition-colors flex items-center gap-2 shadow-sm">
                         <i class="fa-solid fa-plus"></i> Nova Demanda
                     </button>
                 </div>
@@ -711,7 +711,7 @@ html_template = """
             const versao = (d.Versão || '').trim();
             const dev = versao.toLowerCase().includes('dev');
             const linhas = [
-                '✅ *DEM-' + d.ID + ' liberada para teste*',
+                '✅ *Task #' + d.ID + ' liberada para teste*',
                 '📌 ' + (d.Título || ''),
                 '🧪 Ambiente: ' + (dev ? 'dev — painel.dev.uzapi.com.br' : 'produção — painel.uzapi.com.br'),
                 '⚙️ Versão do worker: ' + (versao || 'a confirmar'),
@@ -724,12 +724,78 @@ html_template = """
 
         function buildProdNotice(d) {
             const linhas = [
-                '🚀 *DEM-' + d.ID + ' em produção*',
+                '🚀 *Task #' + d.ID + ' em produção*',
                 '📌 ' + (d.Título || ''),
             ];
             if (d.versao_producao) linhas.push('📦 Versão: ' + d.versao_producao);
+            linhas.push('🤖 Worker: ' + (d.versao_worker || '(informar)'));
             linhas.push('Já disponível para os clientes.');
             return linhas.join(NL);
+        }
+
+        function buildStandbyNotice(d) {
+            const desde = (d.data_standby || '').slice(0, 10).split('-').reverse().join('/');
+            const quem = d.aguardando || '(responsável)';
+            const linhas = [
+                '⏸️ *Task #' + d.ID + ' aguardando alinhamento*',
+                '📌 ' + (d.Título || ''),
+                '👤 ' + quem + ', pode me dar um retorno?',
+                '❓ ' + (d.pendencia || '(pendência)'),
+            ];
+            if (desde) linhas.push('⏳ Em standby desde ' + desde);
+            return linhas.join(NL);
+        }
+
+        // Menções: membros do grupo (GET /participants); cada escolhido vira "@<user>" no texto.
+        let waMembers = [];
+        let waMentions = {};
+
+        async function loadMembers(sugerido) {
+            const sel = document.getElementById('ntMention');
+            if (!sel) return;
+            try {
+                const res = await fetch('/api/wa/participants');
+                waMembers = res.ok ? await res.json() : [];
+            } catch (e) { waMembers = []; }
+            sel.innerHTML = '<option value="">@ Mencionar alguém do grupo...</option>' + waMembers.map((m, i) =>
+                '<option value="' + i + '">' + (m.nome || m.numero || m.user).replace(/</g, '&lt;') + (m.numero ? ' (' + m.numero + ')' : '') + '</option>').join('');
+            if (!waMembers.length) sel.innerHTML = '<option value="">(sem membros para mencionar)</option>';
+            if (sugerido) {
+                const alvo = sugerido.toLowerCase();
+                const i = waMembers.findIndex(m => (m.nome || '').toLowerCase().includes(alvo));
+                if (i >= 0) {
+                    const ta = document.getElementById('ntText');
+                    const m = waMembers[i];
+                    ta.value = ta.value.replace(sugerido + ',', '@' + m.user + ',');
+                    waMentions[m.user] = m.jid;
+                    renderMentions();
+                }
+            }
+        }
+
+        function addMention() {
+            const sel = document.getElementById('ntMention');
+            const m = waMembers[parseInt(sel.value, 10)];
+            sel.value = '';
+            if (!m) return;
+            const ta = document.getElementById('ntText');
+            const pos = ta.selectionStart ?? ta.value.length;
+            const tag = '@' + m.user + ' ';
+            ta.value = ta.value.slice(0, pos) + tag + ta.value.slice(pos);
+            ta.focus();
+            ta.selectionStart = ta.selectionEnd = pos + tag.length;
+            waMentions[m.user] = m.jid;
+            renderMentions();
+        }
+
+        function renderMentions() {
+            const box = document.getElementById('ntMentions');
+            if (!box) return;
+            const nomes = Object.keys(waMentions).map(u => {
+                const m = waMembers.find(x => x.user === u);
+                return (m && (m.nome || m.numero)) || u;
+            });
+            box.innerText = nomes.length ? 'Menções: ' + nomes.join(', ') + ' (o @número aparece como nome no WhatsApp)' : '';
         }
 
         function openNotify(id, tipo) {
@@ -739,26 +805,33 @@ html_template = """
             if (!d) return;
             waView = 'notify';
             const producao = tipo === 'producao';
-            openWaShell((producao ? 'Avisar produção — DEM-' : 'Notificar QA — DEM-') + id);
+            const standby = tipo === 'standby';
+            openWaShell((producao ? 'Avisar produção — DEM-' : standby ? 'Cobrar alinhamento — DEM-' : 'Notificar QA — DEM-') + id);
+            waMentions = {};
             const body = document.getElementById('waModalBody');
             body.dataset.connected = '';
             body.innerHTML = '<p class="mb-2">Grupo: <strong id="ntGroup"></strong>. Revise e edite antes de enviar:</p>'
                 + '<textarea id="ntText" rows="14" class="w-full border border-slate-300 rounded-md p-3 text-sm font-mono"></textarea>'
+                + '<div class="flex flex-wrap items-center gap-2 mt-2"><select id="ntMention" onchange="addMention()" class="border border-slate-300 rounded-md px-2 py-1 text-sm bg-white"><option value="">Carregando membros...</option></select>'
+                + '<span id="ntMentions" class="text-xs text-slate-500"></span></div>'
                 + '<div class="flex justify-end gap-2 mt-3"><button onclick="closeWaModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-md">Cancelar</button>'
                 + '<button id="ntSend" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md"><i class="fa-brands fa-whatsapp"></i> Enviar</button></div>';
             document.getElementById('ntGroup').innerText = waState.group || waState.group_jid;
-            document.getElementById('ntText').value = producao ? buildProdNotice(d) : buildNotice(d);
-            waNotifyTipo = producao ? 'producao' : 'teste';
+            document.getElementById('ntText').value = producao ? buildProdNotice(d) : standby ? buildStandbyNotice(d) : buildNotice(d);
+            waNotifyTipo = producao ? 'producao' : standby ? 'standby' : 'teste';
+            loadMembers(standby ? d.aguardando : '');
             document.getElementById('ntSend').onclick = () => sendNotify(id);
         }
 
         async function sendNotify(id) {
             const text = document.getElementById('ntText').value.trim();
             if (!text) return;
+            // Só vão as menções cujo @<user> continua no texto.
+            const mentions = Object.keys(waMentions).filter(u => text.includes('@' + u)).map(u => waMentions[u]);
             const btn = document.getElementById('ntSend');
             btn.disabled = true; btn.innerText = 'Enviando...';
             const res = await fetch('/api/wa/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id, text: text, tipo: waNotifyTipo }) });
+                body: JSON.stringify({ id: id, text: text, tipo: waNotifyTipo, mentions: mentions }) });
             const r = await res.json();
             if (!res.ok) { alert(r.error || 'Falha no envio'); btn.disabled = false; btn.innerText = 'Enviar'; return; }
             closeWaModal();
@@ -834,6 +907,7 @@ html_template = """
                     <p class="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2 rounded border border-slate-100 cursor-pointer" title="Clique para ver mais" onclick="openModal('${d.ID}')">${descPreview.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
                     ${actionBtn}
                     ${(waState.connected && d.ia_status === 'em_teste') ? `<button onclick="openNotify('${d.ID}', 'teste')" class="mt-2 w-full bg-white hover:bg-violet-50 text-violet-700 border border-violet-200 font-medium py-1.5 px-3 rounded text-sm transition-colors flex items-center justify-center gap-2"><i class="fa-brands fa-whatsapp"></i> Notificar QA</button>` : ''}
+                    ${(waState.connected && d.ia_status === 'standby') ? `<button onclick="openNotify('${d.ID}', 'standby')" class="mt-2 w-full bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 font-medium py-1.5 px-3 rounded text-sm transition-colors flex items-center justify-center gap-2"><i class="fa-brands fa-whatsapp"></i> Cobrar alinhamento</button>` : ''}
                     ${(waState.connected && d.ia_status === 'concluido' && !d.historico) ? `<button onclick="openNotify('${d.ID}', 'producao')" class="mt-2 w-full bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium py-1.5 px-3 rounded text-sm transition-colors flex items-center justify-center gap-2"><i class="fa-brands fa-whatsapp"></i> Avisar produção</button>` : ''}
                 </div>
             `;
@@ -979,7 +1053,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path.startswith('/api/wa/'):
             sub = parsed.path[len('/api/wa'):]
-            if sub not in ('/status', '/qr.png', '/groups', '/feedback'):
+            if sub not in ('/status', '/qr.png', '/groups', '/feedback', '/participants'):
                 return self._send(404, {"error": "rota inválida"})
             code, body, ctype = wa_call('GET', sub + ('?' + parsed.query if parsed.query else ''))
             if sub == '/status' and code == 200:
@@ -1012,6 +1086,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         'status': fm.get('status') or 'pendente',
                         'versao_producao': fm.get('versao_producao', ''),
                         'data_producao': fm.get('data_producao', ''),
+                        'versao_worker': fm.get('versao_worker', ''),
+                        'aguardando': fm.get('aguardando', ''),
+                        'pendencia': fm.get('pendencia', ''),
+                        'data_standby': fm.get('data_standby', '') or fm.get('data_ativacao', ''),
                         'md_content': content
                     }
 
@@ -1026,6 +1104,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         'status': fm.get('status') or 'standby',
                         'versao_producao': fm.get('versao_producao', ''),
                         'data_producao': fm.get('data_producao', ''),
+                        'versao_worker': fm.get('versao_worker', ''),
+                        'aguardando': fm.get('aguardando', ''),
+                        'pendencia': fm.get('pendencia', ''),
+                        'data_standby': fm.get('data_standby', '') or fm.get('data_ativacao', ''),
                         'md_content': content
                     }
 
@@ -1046,6 +1128,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                             row['md_content'] = info['md_content']
                             row['versao_producao'] = info['versao_producao']
                             row['data_producao'] = info['data_producao']
+                            row['versao_worker'] = info['versao_worker']
+                            row['aguardando'] = info['aguardando']
+                            row['pendencia'] = info['pendencia']
+                            row['data_standby'] = info['data_standby']
                         else:
                             # Ignorar as reprovadas no CSV original que não foram pra IA
                             if status_csv == 'reprovado':
@@ -1087,7 +1173,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if sub == '/send':
                 task_id = str(body.get('id', '')).strip()
                 texto = body.get('text', '')
-                code, resp, ctype = wa_call('POST', '/send', {"text": texto})
+                payload = {"text": texto}
+                mentions = [str(m) for m in (body.get('mentions') or []) if str(m).strip()]
+                if mentions:
+                    payload["mentions"] = mentions
+                code, resp, ctype = wa_call('POST', '/send', payload)
                 if code == 200 and task_id:
                     registrar_notificacao(task_id, texto, body.get('tipo', 'teste'))
                 return self._send(code, resp, ctype)

@@ -1,9 +1,12 @@
 ---
 id: DEM-90
-status: em_teste
+status: concluido
 data_ativacao: 2026-10-15 16:02:21
 data_conclusao: 2026-10-15 16:20:00
 modulo: Usuários
+data_producao: 2026-10-16
+versao_producao: manager-service v0.3.61
+versao_worker: v0.0.98
 ---
 
 # 🚀 Histórico de Execução: Limitação na contagem de usuários
@@ -39,3 +42,18 @@ Arquivo gerado em 15/10/2026 pela ação "Ativar" do painel (`POST /api/ativar`)
 
 ## 🔁 Reclassificação (15/10/2026)
 `status: concluido` → `em_teste` pela regra nova de etapas (`AGENTS.md`, seção 3: `concluido` só após aprovação do QA, promoção para a `main` e release): entregue só na `dev` (`manager-service v0.3.59-dev.14`), aguardando teste do QA.
+
+## 🚀 Promoção para produção (16/10/2026)
+- QA aprovou no dev em 15/10 (planilha `Aprovado`; grupo: total real, busca de usuário antigo e exportação OK).
+- `manager-service` branch `promote/dem-80-90-prod` a partir da `main` `b9d70ba` (`v0.3.60`): `git cherry-pick -x fb7ca3d` → `01a205e` (aplicou limpo), junto com `13b63c0` → `03ee865` (DEM-80/91). Diff contra a `main`: só `admin/users/route.ts`, `admin/users/export/route.ts` e `api/instances/route.ts`.
+- `tsc --noEmit` e `eslint` nos 3 arquivos: OK.
+- MR !31 mergeado na `main` (pais `b9d70ba` + `03ee865`), tag **`v0.3.61`** (informado pelo desenvolvedor). Pipeline/deploy da tag não verificados daqui.
+
+
+### 📣 WhatsApp: aviso de produção enviada ao grupo (16/10/2026 10:28)
+```
+🚀 *Task #90 em produção*
+📌 Limitação na contagem de usuários
+📦 Versão: manager-service v0.3.61
+Já disponível para os clientes.
+```
